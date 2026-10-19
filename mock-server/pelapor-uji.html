@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Siaran Uji Warga</title>
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --panel: #161515;
+      --garis: rgba(255, 255, 255, 0.1);
+      --teks: #f0f0f0;
+      --redup: #a0a0a0;
+      --merah: #ff3b30;
+      --limau: #b8f34a;
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body { margin: 0; background: var(--bg); color: var(--teks); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    header { padding: 16px 20px; border-bottom: 1px solid var(--garis); }
+    header h1 { margin: 0; font-size: 18px; }
+    header p { margin: 2px 0 0; color: var(--redup); font-size: 13px; }
+    main { padding: 20px; display: grid; gap: 20px; grid-template-columns: minmax(0, 360px) minmax(280px, 1fr); max-width: 980px; margin: 0 auto; }
+    @media (max-width: 760px) { main { grid-template-columns: 1fr; } }
+    .layar { position: relative; aspect-ratio: 9 / 16; background: #000; border-radius: 14px; overflow: hidden; }
+    video { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .hud { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+    .pil { background: rgba(0, 0, 0, 0.6); padding: 3px 8px; border-radius: 6px; font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .lencana { background: var(--merah); }
+    #kosong { position: absolute; inset: 0; display: grid; place-items: center; color: var(--redup); padding: 24px; text-align: center; }
+    aside { background: var(--panel); border: 1px solid var(--garis); border-radius: 14px; padding: 16px; display: grid; gap: 12px; align-content: start; }
+    label { display: grid; gap: 4px; font-size: 13px; color: var(--redup); }
+    input[type="text"], select {
+      font: inherit; color: var(--teks); background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--garis); border-radius: 10px; padding: 9px 12px;
+    }
+    .centang { display: flex; gap: 8px; align-items: center; color: var(--teks); }
+    .tombol { border: 0; font: inherit; font-weight: 700; padding: 11px 16px; border-radius: 999px; cursor: pointer; background: var(--merah); color: #fff; }
+    .tombol.garis { background: transparent; border: 1.5px solid var(--redup); color: var(--teks); }
+    #log { display: grid; gap: 6px; max-height: 320px; overflow: auto; font-size: 14px; }
+    #log div { background: rgba(255, 255, 255, 0.05); padding: 6px 10px; border-radius: 8px; overflow-wrap: anywhere; }
+    #log b { color: var(--limau); margin-right: 6px; }
+    #form-balas { display: flex; gap: 8px; }
+    #form-balas input { flex: 1; min-width: 0; }
+    .catatan { color: var(--redup); font-size: 12.5px; margin: 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Siaran uji — jadi "warga lain" yang sedang live</h1>
+    <p>Mulai siaran di sini, lalu tonton dari beranda aplikasi di HP. Uji lokal (mock server).</p>
+  </header>
+
+  <main>
+    <div class="layar">
+      <video id="pratinjau" autoplay playsinline muted></video>
+      <div class="hud" id="hud" hidden>
+        <span class="pil lencana">● LIVE</span>
+        <span class="pil" id="durasi">00:00</span>
+        <span class="pil" id="penonton">0 menonton</span>
+        <span class="pil" id="suka">♥ 0</span>
+        <span class="pil" id="hadiah">🎁 0</span>
+      </div>
+      <div id="kosong">Belum siaran.</div>
+    </div>
+
+    <aside>
+      <label>Nama pelapor <input type="text" id="nama" value="Rina" maxlength="100" /></label>
+      <label>Apa yang terjadi? <input type="text" id="judul" value="Asap tebal di belakang kebun sawit" maxlength="255" /></label>
+      <label>Sumber video
+        <select id="sumber">
+          <option value="animasi">Animasi api (tanpa kamera)</option>
+          <option value="kamera">Kamera laptop</option>
+        </select>
+      </label>
+      <label class="centang"><input type="checkbox" id="publik" checked /> Tampilkan di beranda warga (publik — masuk uji otomatis dengan nama di atas)</label>
+      <button class="tombol" id="mulai">● Mulai siaran</button>
+      <button class="tombol garis" id="akhiri" hidden>Akhiri siaran</button>
+      <form id="form-balas" hidden autocomplete="off">
+        <input type="text" id="isi-balas" maxlength="200" placeholder="Balas penonton…" />
+        <button class="tombol garis" type="submit">Kirim</button>
+      </form>
+      <div id="log"></div>
+      <p class="catatan">Lokasi siaran: titik uji di Kalimantan Tengah. Siaran publik hanya membagikan perkiraan (~1 km) ke semua penonton; titik persis dikirim ke petugas saja (topik "lokasi"). Tab ini harus tetap terbuka selama siaran.</p>
+    </aside>
+  </main>
+
+  <script src="/livekit-client.umd.js"></script>
+  <script>
+    // Dibuka lewat IP LAN (http, bukan localhost) halaman ini bukan secure context:
+    // crypto.randomUUID tidak ada, padahal sendText livekit-client memakainya.
+    if (typeof crypto.randomUUID !== 'function') {
+      crypto.randomUUID = () =>
+        '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (c) =>
+          (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16),
+        );
+    }
+    const { Room, RoomEvent, Track } = LivekitClient;
+    const $ = (id) => document.getElementById(id);
+    // Sama dengan src/lib/live.ts di aplikasi.
+    const DAFTAR_HADIAH = {
+      tepuk: '👏 Tepuk tangan', air: '💧 Tetes air', 'terima-kasih': '🙏 Terima kasih', pohon: '🌳 Pohon',
+      pemadam: '🧯 Pemadam', medali: '🏅 Medali', damkar: '🚒 Mobil damkar', 'bom-air': '🚁 Bom air',
+    };
+    const TITIK = { lat: -1.6815, lng: 113.3826 };
+    const AWALAN_PETUGAS = 'petugas-';
+    // Peran dari identitas server (sama dengan aplikasi), bukan dari nama.
+    const peran = (identity) =>
+      identity.startsWith(AWALAN_PETUGAS) ? 'Petugas' : identity.startsWith('pelapor-') ? 'Pelapor' : null;
+    const namaPenonton = (identity) => {
+      const nama = room?.remoteParticipants.get(identity)?.name || 'Penonton';
+      return peran(identity) && peran(identity) !== nama ? `${nama} · ${peran(identity)}` : nama;
+    };
+
+    let room = null;
+    let mulaiPada = 0;
+    let trek = null;
+    let suka = 0;
+    let hadiah = 0;
+    let posisi = null;
+    const pengatur = [];
+
+    function kirimLokasiPersis(tujuan) {
+      if (!room || !posisi || tujuan.length === 0) return;
+      room.localParticipant
+        .sendText(JSON.stringify(posisi), { topic: 'lokasi', destinationIdentities: tujuan })
+        .catch((e) => catat('Sistem', `Lokasi ke petugas gagal terkirim: ${e.message}`));
+    }
+
+    function catat(nama, teks) {
+      const d = document.createElement('div');
+      const b = document.createElement('b');
+      b.textContent = nama;
+      d.append(b, teks); // teks penonton → text node, bukan HTML
+      $('log').prepend(d);
+      while ($('log').children.length > 60) $('log').lastChild.remove();
+    }
+
+    // Animasi api di kanvas: partikel bercahaya naik dari barisan pohon.
+    function trekAnimasi() {
+      const c = document.createElement('canvas');
+      c.width = 540;
+      c.height = 960;
+      const g = c.getContext('2d');
+      const partikel = [];
+      const pohon = Array.from({ length: 14 }, (_, i) => ({ x: i * 42 + Math.random() * 20, t: 120 + Math.random() * 140 }));
+      pengatur.push(setInterval(() => {
+        const langit = g.createLinearGradient(0, 0, 0, c.height);
+        langit.addColorStop(0, '#3a3d40');
+        langit.addColorStop(0.55, '#5b4330');
+        langit.addColorStop(1, '#170f09');
+        g.fillStyle = langit;
+        g.fillRect(0, 0, c.width, c.height);
+        for (let i = 0; i < 7; i++) {
+          partikel.push({ x: c.width * (0.15 + Math.random() * 0.7), y: c.height * 0.8, vx: (Math.random() - 0.5) * 1.4, vy: -(2 + Math.random() * 3.5), r: 28 + Math.random() * 46, umur: 0 });
+        }
+        g.globalCompositeOperation = 'lighter';
+        for (const p of partikel) {
+          p.x += p.vx + Math.sin((p.umur + p.y) / 9) * 0.6;
+          p.y += p.vy;
+          p.r *= 0.976;
+          p.umur++;
+          const a = Math.max(0, 1 - p.umur / 75);
+          const rg = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
+          rg.addColorStop(0, `rgba(255,225,130,${a})`);
+          rg.addColorStop(0.45, `rgba(255,120,30,${a * 0.75})`);
+          rg.addColorStop(1, 'rgba(255,50,0,0)');
+          g.fillStyle = rg;
+          g.beginPath();
+          g.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          g.fill();
+        }
+        g.globalCompositeOperation = 'source-over';
+        while (partikel.length && partikel[0].umur > 75) partikel.shift();
+        g.fillStyle = '#0a0705';
+        for (const t of pohon) {
+          g.beginPath();
+          g.moveTo(t.x - 26, c.height * 0.82);
+          g.lineTo(t.x, c.height * 0.82 - t.t);
+          g.lineTo(t.x + 26, c.height * 0.82);
+          g.fill();
+        }
+        g.fillRect(0, c.height * 0.82, c.width, c.height);
+        g.fillStyle = 'rgba(255,255,255,0.85)';
+        g.font = '600 26px system-ui, sans-serif';
+        g.fillText(`SIARAN UJI · ${new Date().toLocaleTimeString('id-ID')}`, 24, c.height - 40);
+      }, 1000 / 24));
+      return c.captureStream(24).getVideoTracks()[0];
+    }
+
+    async function mulai() {
+      $('mulai').disabled = true;
+      catat('Sistem', 'Meminta token siaran…');
+      const publik = $('publik').checked;
+      // Siaran publik wajib akun (sama dengan situs): masuk uji dengan nama pelapor.
+      let bearer = null;
+      if (publik) {
+        const m = await fetch('/api/mobile/masuk/uji', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nama: $('nama').value }),
+        });
+        bearer = (await m.json().catch(() => ({}))).token ?? null;
+        if (!bearer) {
+          $('mulai').disabled = false;
+          return catat('Sistem', `Masuk uji gagal (HTTP ${m.status}).`);
+        }
+      }
+      const r = await fetch('/api/mobile/live/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(bearer && { Authorization: `Bearer ${bearer}` }) },
+        body: JSON.stringify({ judul: $('judul').value, nama: $('nama').value, anonim: false, publik, ...TITIK }),
+      });
+      const tiket = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        $('mulai').disabled = false;
+        return catat('Sistem', tiket.galat ?? `HTTP ${r.status}`);
+      }
+
+      room = new Room({ dynacast: true });
+      room.registerTextStreamHandler('komentar', async (reader, { identity }) => {
+        catat(namaPenonton(identity), (await reader.readAll()).slice(0, 200));
+      });
+      room.registerTextStreamHandler('suka', async (reader) => {
+        suka += Math.min(50, Math.max(1, parseInt(await reader.readAll(), 10) || 1));
+        $('suka').textContent = `♥ ${suka}`;
+      });
+      room.registerTextStreamHandler('hadiah', async (reader, { identity }) => {
+        let isi = null;
+        try { isi = JSON.parse(await reader.readAll()); } catch {}
+        if (!DAFTAR_HADIAH[isi?.id]) return;
+        const n = Math.min(99, Math.max(1, Math.floor(Number(isi.jumlah)) || 1));
+        hadiah += n;
+        $('hadiah').textContent = `🎁 ${hadiah}`;
+        catat(namaPenonton(identity), `mengirim ${DAFTAR_HADIAH[isi.id]} x${n}`);
+      });
+      room
+        .on(RoomEvent.ParticipantConnected, (p) => {
+          catat('Sistem', `${p.name || p.identity} bergabung`);
+          // Petugas yang baru bergabung langsung mendapat titik persis.
+          if (publik && p.identity.startsWith(AWALAN_PETUGAS)) kirimLokasiPersis([p.identity]);
+        })
+        .on(RoomEvent.ParticipantDisconnected, (p) => catat('Sistem', `${p.name || p.identity} keluar`))
+        .on(RoomEvent.Disconnected, () => akhiri());
+
+      try {
+        await room.connect(tiket.url, tiket.token);
+        if ($('sumber').value === 'kamera') {
+          const [t] = await LivekitClient.createLocalTracks({ video: { resolution: LivekitClient.VideoPresets.h540.resolution } });
+          trek = t.mediaStreamTrack;
+          await room.localParticipant.publishTrack(t);
+        } else {
+          trek = trekAnimasi();
+          await room.localParticipant.publishTrack(trek, { source: Track.Source.Camera });
+        }
+      } catch (e) {
+        catat('Sistem', `Gagal siaran: ${e.message}`);
+        return akhiri();
+      }
+      $('pratinjau').srcObject = new MediaStream([trek]);
+      mulaiPada = Date.now();
+      $('hud').hidden = false;
+      $('kosong').hidden = true;
+      $('mulai').hidden = true;
+      $('akhiri').hidden = false;
+      $('form-balas').hidden = false;
+      catat('Sistem', `Siaran dimulai (${tiket.ruang})${publik ? ' — tampil di beranda warga' : ' — hanya petugas'}`);
+
+      // GPS uji: bergeser sedikit tiap 5 detik, seperti pelapor yang berjalan. Seperti
+      // aplikasi: siaran publik hanya membagikan perkiraan lewat atribut (terbaca semua
+      // penonton), titik persis lewat topik "lokasi" ke peserta petugas-… saja.
+      const kirimLokasi = () => {
+        posisi = {
+          lat: TITIK.lat + (Math.random() - 0.5) * 0.0004,
+          lng: TITIK.lng + (Math.random() - 0.5) * 0.0004,
+          akurasi: 5 + Math.round(Math.random() * 6),
+          waktu: Date.now(),
+        };
+        room?.localParticipant
+          .setAttributes({
+            lat: posisi.lat.toFixed(publik ? 2 : 6),
+            lng: posisi.lng.toFixed(publik ? 2 : 6),
+            akurasi: publik ? '' : String(posisi.akurasi),
+            waktu: String(posisi.waktu),
+          })
+          .catch(() => {});
+        if (publik) kirimLokasiPersis([...(room?.remoteParticipants.keys() ?? [])].filter((id) => id.startsWith(AWALAN_PETUGAS)));
+      };
+      kirimLokasi();
+      pengatur.push(setInterval(kirimLokasi, 5000));
+      pengatur.push(setInterval(() => {
+        const s = Math.floor((Date.now() - mulaiPada) / 1000);
+        $('durasi').textContent = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+        $('penonton').textContent = `${room?.remoteParticipants.size ?? 0} menonton`;
+      }, 1000));
+    }
+
+    async function akhiri() {
+      const lama = room;
+      room = null;
+      pengatur.splice(0).forEach(clearInterval);
+      trek?.stop();
+      trek = null;
+      posisi = null;
+      if (lama) await lama.disconnect();
+      $('pratinjau').srcObject = null;
+      $('hud').hidden = true;
+      $('kosong').hidden = false;
+      $('kosong').textContent = 'Siaran selesai.';
+      $('mulai').hidden = false;
+      $('mulai').disabled = false;
+      $('akhiri').hidden = true;
+      $('form-balas').hidden = true;
+      suka = 0;
+      hadiah = 0;
+      $('suka').textContent = '♥ 0';
+      $('hadiah').textContent = '🎁 0';
+    }
+
+    $('mulai').onclick = () => void mulai();
+    $('akhiri').onclick = () => void akhiri();
+    $('form-balas').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const isi = $('isi-balas').value.trim().slice(0, 200);
+      if (!isi || !room) return;
+      try {
+        await room.localParticipant.sendText(isi, { topic: 'komentar' });
+        catat('Anda', isi);
+        $('isi-balas').value = '';
+      } catch (err) {
+        catat('Sistem', `Balasan gagal terkirim: ${err.message}`);
+      }
+    });
+  </script>
+</body>
+</html>

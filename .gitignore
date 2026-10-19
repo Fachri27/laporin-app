@@ -41,3 +41,9 @@ example
 # generated native folders
 /ios
 /android
+
+# env (EXPO_PUBLIC_API_URL)
+.env
+
+# hasil uji mock server
+mock-server/unggahan/

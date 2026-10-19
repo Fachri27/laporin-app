@@ -1,0 +1,713 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Siaran Langsung Warga</title>
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --panel: #161515;
+      --garis: rgba(255, 255, 255, 0.1);
+      --teks: #f0f0f0;
+      --redup: #a0a0a0;
+      --bara: #ff5a26;
+      --merah: #ff3b30;
+      --hijau: #34c759;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--teks);
+      font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--garis);
+    }
+    header h1 { margin: 0; font-size: 18px; }
+    header p { margin: 0; color: var(--redup); font-size: 13px; }
+    .titik {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--merah);
+      box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.6);
+      animation: denyut 1.4s infinite;
+      flex: none;
+    }
+    .titik.hijau { background: var(--hijau); box-shadow: 0 0 0 0 rgba(52, 199, 89, 0.6); }
+    .titik.abu { background: #777; animation: none; }
+    @keyframes denyut { 70% { box-shadow: 0 0 0 8px rgba(0, 0, 0, 0); } 100% { box-shadow: 0 0 0 0 rgba(0, 0, 0, 0); } }
+
+    main { padding: 20px; display: grid; gap: 20px; max-width: 1280px; margin: 0 auto; }
+    h2 { margin: 0 0 12px; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--redup); }
+
+    #daftar ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+    .kartu {
+      width: 100%;
+      text-align: left;
+      background: var(--panel);
+      border: 1px solid var(--garis);
+      border-radius: 14px;
+      padding: 14px;
+      color: inherit;
+      font: inherit;
+      cursor: pointer;
+      display: grid;
+      gap: 6px;
+    }
+    .kartu:hover, .kartu[aria-current="true"] { border-color: var(--bara); }
+    .kartu .judul { font-weight: 700; }
+    .kartu .meta { color: var(--redup); font-size: 13px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .lencana {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--merah); color: #fff;
+      font-size: 11px; font-weight: 900; letter-spacing: 0.08em;
+      padding: 3px 8px; border-radius: 6px; width: fit-content;
+    }
+    .lencana .titik { width: 6px; height: 6px; background: #fff; }
+    #kosong { color: var(--redup); margin: 0; }
+
+    #tonton { display: grid; gap: 16px; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); }
+    #tonton[hidden] { display: none; }
+    @media (max-width: 860px) { #tonton { grid-template-columns: 1fr; } }
+
+    .pemutar {
+      position: relative;
+      background: #000;
+      border-radius: 14px;
+      overflow: hidden;
+      aspect-ratio: 9 / 16;
+      max-height: 78vh;
+      justify-self: center;
+      width: 100%;
+    }
+    @media (min-width: 861px) { .pemutar { aspect-ratio: auto; height: 78vh; } }
+    video { width: 100%; height: 100%; object-fit: contain; background: #000; display: block; }
+    .hud { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; gap: 8px; align-items: center; }
+    .pil { background: rgba(0, 0, 0, 0.6); padding: 3px 9px; border-radius: 6px; font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .kanan { margin-left: auto; }
+    #status {
+      position: absolute; inset: 0;
+      display: grid; place-items: center;
+      text-align: center; padding: 24px;
+      background: rgba(0, 0, 0, 0.55);
+      font-weight: 600;
+    }
+    #status[hidden] { display: none; }
+
+    aside { background: var(--panel); border: 1px solid var(--garis); border-radius: 14px; padding: 16px; display: grid; gap: 14px; align-content: start; }
+    aside h3 { margin: 0; font-size: 18px; }
+    .baris { color: var(--redup); font-size: 13.5px; }
+    .koordinat { font-family: ui-monospace, Menlo, monospace; font-size: 16px; font-weight: 600; }
+    iframe { width: 100%; height: 240px; border: 0; border-radius: 10px; background: #222; }
+    a { color: var(--bara); }
+    .tombol {
+      border: 1.5px solid var(--bara); background: transparent; color: var(--bara);
+      font: inherit; font-weight: 700; padding: 10px 14px; border-radius: 999px; cursor: pointer;
+    }
+    .tombol.isi { background: var(--bara); color: #fff; }
+    .tombol[hidden] { display: none; }
+    .aksi { display: flex; gap: 8px; flex-wrap: wrap; }
+    .catatan { color: var(--redup); font-size: 12.5px; border-top: 1px solid var(--garis); padding-top: 12px; }
+
+    /* Interaksi ala siaran TikTok: komentar di kiri bawah video, ketuk video = hati. */
+    .pemutar { cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; }
+    .kiri-bawah { position: absolute; left: 12px; bottom: 12px; max-width: 75%; display: grid; gap: 8px; pointer-events: none; }
+    #komentar-lapis, #kiriman-lapis { display: grid; gap: 6px; }
+    .gelembung { width: fit-content; background: rgba(0, 0, 0, 0.45); padding: 6px 10px; border-radius: 10px; font-size: 14px; animation: masuk 0.25s ease-out; overflow-wrap: anywhere; }
+    .gelembung b { color: rgba(255, 255, 255, 0.7); margin-right: 6px; }
+    .gelembung.pelapor b { color: #ffcc00; }
+    .gelembung.saya b { color: var(--bara); }
+    .peran { font-size: 11px; font-weight: 700; padding: 1px 5px; border-radius: 4px; margin-right: 6px; background: #ffcc00; color: #000; }
+    .peran.petugas { background: var(--hijau); }
+    @keyframes masuk { from { opacity: 0; transform: translateY(8px); } }
+    #hati-lapis { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+    .hati { position: absolute; font-size: 40px; line-height: 1; opacity: 0; animation: naik 1.5s ease-out forwards; }
+    @keyframes naik {
+      0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+      10% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+      75% { opacity: 1; }
+      100% { opacity: 0; transform: translate(calc(-50% + var(--goyang)), calc(-50% - 240px)) scale(0.9); }
+    }
+    /* Hadiah ala gift TikTok: spanduk + combo "x N" di kiri, hadiah besar melintas di tengah. */
+    .kiriman {
+      display: flex; align-items: center; gap: 8px; width: fit-content; max-width: 300px; padding: 3px;
+      border-radius: 999px; background: linear-gradient(90deg, rgba(15, 18, 16, 0.75), rgba(15, 18, 16, 0.15));
+      animation: geser 0.26s ease-out; transition: opacity 0.25s;
+    }
+    .kiriman.pudar { opacity: 0; }
+    .kiriman .avatar {
+      width: 34px; height: 34px; border-radius: 50%; flex: none; display: grid; place-items: center;
+      border: 2px solid #b8f34a; background: #304036; font-weight: 800; font-size: 13px;
+    }
+    .kiriman .teks { display: grid; line-height: 1.25; min-width: 0; }
+    .kiriman .teks b { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .kiriman .teks span { font-size: 11.5px; color: rgba(255, 255, 255, 0.75); white-space: nowrap; }
+    .kiriman .emoji { font-size: 32px; line-height: 1; margin: -6px 0; }
+    .kiriman .combo { font-size: 24px; font-weight: 900; font-style: italic; padding-right: 10px; text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6); }
+    .combo.lompat { animation: lompat 0.35s cubic-bezier(0.2, 1.6, 0.4, 1); }
+    @keyframes geser { from { opacity: 0; transform: translateX(-80px); } }
+    @keyframes lompat { from { transform: scale(1.8); } }
+    #sorotan-lapis { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+    .sorotan { position: absolute; inset: 0; display: grid; place-items: center; align-content: center; gap: 16px; }
+    .sorotan .panggung {
+      width: 200px; height: 200px; display: grid; place-items: center; border-radius: 50%;
+      background: rgba(184, 243, 74, 0.16); animation: melintas 2.8s linear forwards;
+    }
+    .sorotan .panggung span { font-size: 120px; line-height: 1; }
+    .sorotan .ket {
+      max-width: 85%; padding: 8px 14px; border-radius: 999px; background: rgba(15, 18, 16, 0.7);
+      font-weight: 600; text-align: center; opacity: 0; animation: keterangan 2.8s linear forwards;
+    }
+    .sorotan .ket b { color: #b8f34a; }
+    .tetes { position: absolute; top: -40px; opacity: 0; animation: jatuh 1s linear forwards; }
+    @keyframes melintas {
+      0% { opacity: 0; transform: translateX(var(--lebar)) scale(0.6); }
+      12% { opacity: 1; }
+      20% { transform: translateX(0) scale(1); }
+      28% { transform: scale(1.15); }
+      36%, 80% { transform: scale(1); }
+      85% { opacity: 1; }
+      100% { opacity: 0; transform: translateX(calc(-1 * var(--lebar))) scale(0.8); }
+    }
+    @keyframes keterangan { 18% { opacity: 0; } 26%, 80% { opacity: 1; } 90%, 100% { opacity: 0; } }
+    @keyframes jatuh {
+      0% { opacity: 0; transform: translateY(0); }
+      12%, 85% { opacity: 1; }
+      100% { opacity: 0; transform: translateY(var(--tinggi)); }
+    }
+    .grid-hadiah { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .tombol-hadiah {
+      display: grid; justify-items: center; gap: 2px; padding: 8px 2px; cursor: pointer;
+      border: 1px solid var(--garis); border-radius: 10px; background: rgba(255, 255, 255, 0.04);
+      color: var(--teks); font: inherit; font-size: 11.5px; line-height: 1.2;
+    }
+    .tombol-hadiah:hover { border-color: #b8f34a; }
+    .tombol-hadiah:active { transform: scale(0.94); }
+    .tombol-hadiah .emoji { font-size: 28px; line-height: 1.1; }
+    .tombol-hadiah.besar { border-color: rgba(184, 243, 74, 0.45); }
+    #form-komentar { display: flex; gap: 8px; }
+    #isi-komentar {
+      flex: 1; min-width: 0; font: inherit; color: var(--teks);
+      background: rgba(255, 255, 255, 0.06); border: 1px solid var(--garis);
+      border-radius: 999px; padding: 10px 14px;
+    }
+    #isi-komentar:focus { outline: none; border-color: var(--bara); }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="titik" aria-hidden="true"></span>
+    <div>
+      <h1>Siaran langsung warga</h1>
+      <p>Panel petugas · uji lokal (mock server)</p>
+    </div>
+  </header>
+
+  <main>
+    <section id="daftar" aria-labelledby="judul-daftar">
+      <h2 id="judul-daftar">Sedang berlangsung</h2>
+      <ul id="list"></ul>
+      <p id="kosong">Belum ada siaran. Mulai siaran dari aplikasi — daftar ini diperbarui otomatis.</p>
+    </section>
+
+    <section id="tonton" hidden aria-label="Menonton siaran">
+      <div class="pemutar" id="pemutar" title="Ketuk untuk mengirim hati ke pelapor">
+        <video id="video" autoplay playsinline muted></video>
+        <div class="kiri-bawah">
+          <div id="kiriman-lapis"></div>
+          <div id="komentar-lapis"></div>
+        </div>
+        <div id="hati-lapis"></div>
+        <div id="sorotan-lapis"></div>
+        <div class="hud">
+          <span class="lencana"><span class="titik"></span>LIVE</span>
+          <span class="pil" id="durasi">00:00</span>
+          <span class="pil" id="suka">♥ 0</span>
+          <span class="pil" id="jumlah-hadiah">🎁 0</span>
+          <span class="pil kanan" id="kualitas">Sinyal pelapor: …</span>
+        </div>
+        <div id="status">Menghubungkan…</div>
+      </div>
+
+      <aside>
+        <div>
+          <h3 id="t-judul"></h3>
+          <div class="baris" id="t-pelapor"></div>
+        </div>
+        <div>
+          <div class="baris">Lokasi pelapor (live)</div>
+          <div class="koordinat" id="t-koordinat">—</div>
+          <div class="baris" id="t-akurasi"></div>
+        </div>
+        <iframe id="peta" title="Peta lokasi pelapor" loading="lazy"></iframe>
+        <div>
+          <form id="form-komentar" autocomplete="off">
+            <input id="isi-komentar" maxlength="200" placeholder="Komentar untuk pelapor…" aria-label="Komentar untuk pelapor" />
+            <button class="tombol isi" type="submit">Kirim</button>
+          </form>
+          <div class="baris" style="margin-top: 6px">Muncul di layar HP pelapor. Ketuk video untuk mengirim ♥.</div>
+        </div>
+        <div>
+          <div class="baris" style="margin-bottom: 6px">Kirim hadiah apresiasi ke pelapor (simbolis, tanpa koin)</div>
+          <div class="grid-hadiah" id="grid-hadiah"></div>
+        </div>
+        <div class="aksi">
+          <a class="tombol" id="t-gmaps" target="_blank" rel="noopener">Buka di Google Maps</a>
+          <button class="tombol isi" id="suara" hidden>Nyalakan suara</button>
+          <button class="tombol" id="keluar">Berhenti menonton</button>
+        </div>
+        <p class="catatan">Di produksi halaman ini masuk CMS dan hanya bisa dibuka petugas yang login.</p>
+      </aside>
+    </section>
+  </main>
+
+  <script src="/livekit-client.umd.js"></script>
+  <script>
+    // Dibuka lewat IP LAN (http, bukan localhost) halaman ini bukan secure context:
+    // crypto.randomUUID tidak ada, padahal sendText livekit-client memakainya.
+    if (typeof crypto.randomUUID !== 'function') {
+      crypto.randomUUID = () =>
+        '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (c) =>
+          (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16),
+        );
+    }
+    const { Room, RoomEvent, Track, ConnectionQuality } = LivekitClient;
+    const $ = (id) => document.getElementById(id);
+    const AWALAN_PELAPOR = 'pelapor-';
+    // Sama dengan src/lib/live.ts di aplikasi.
+    const TOPIK_KOMENTAR = 'komentar';
+    const TOPIK_SUKA = 'suka';
+    const TOPIK_HADIAH = 'hadiah';
+    // Siaran publik: titik persis hanya lewat topik ini (atribut pelapor dibulatkan ~1 km).
+    const TOPIK_LOKASI = 'lokasi';
+    const BATAS_KOMENTAR = 200;
+    const DAFTAR_HADIAH = [
+      { id: 'tepuk', nama: 'Tepuk tangan', emoji: '👏', besar: false },
+      { id: 'air', nama: 'Tetes air', emoji: '💧', besar: false },
+      { id: 'terima-kasih', nama: 'Terima kasih', emoji: '🙏', besar: false },
+      { id: 'pohon', nama: 'Pohon', emoji: '🌳', besar: false },
+      { id: 'pemadam', nama: 'Pemadam', emoji: '🧯', besar: false },
+      { id: 'medali', nama: 'Medali', emoji: '🏅', besar: false },
+      { id: 'damkar', nama: 'Mobil damkar', emoji: '🚒', besar: true },
+      { id: 'bom-air', nama: 'Bom air', emoji: '🚁', besar: true },
+    ];
+    const MAKS_JALUR_KIRIMAN = 2;
+    const TAMPIL_KIRIMAN_MS = 3000;
+    const MAKS_ANTRE_SOROTAN = 5;
+    const DURASI_SOROTAN_MS = 2800;
+    const WARNA_HATI = ['#ff3b30', '#ff5a26', '#ff2d55', '#ffcc00', '#ff9500'];
+    const KUALITAS = {
+      [ConnectionQuality.Excellent]: 'bagus',
+      [ConnectionQuality.Good]: 'cukup',
+      [ConnectionQuality.Poor]: 'lemah',
+      [ConnectionQuality.Lost]: 'putus',
+      [ConnectionQuality.Unknown]: '…',
+    };
+
+    let room = null;
+    let aktif = null;
+    let lokasi = null;
+    let lokasiPersis = false; // sudah menerima topik lokasi di siaran ini
+    let petaUntuk = null;
+    let jumlahSuka = 0;
+    let sukaTertunda = 0;
+    let pengaturSuka = null;
+    let jumlahHadiah = 0;
+    const kiriman = new Map(); // `${identity}:${id}` → { el, comboEl, combo, timer }
+    const antreanSorotan = [];
+    let sorotanJalan = false;
+    const hadiahTertunda = new Map(); // id → jumlah ketukan yang belum terkirim
+    let pengaturHadiah = null;
+
+    const durasi = (ms) => {
+      const s = Math.max(0, Math.floor(ms / 1000));
+      return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+    };
+
+    // Teks dari pelapor selalu lewat textContent — jangan pernah innerHTML.
+    function el(tag, kelas, teks) {
+      const e = document.createElement(tag);
+      if (kelas) e.className = kelas;
+      if (teks != null) e.textContent = teks;
+      return e;
+    }
+
+    // Peran dari identitas yang ditandatangani server, bukan dari nama (nama bisa menyamar).
+    function peranDari(identity) {
+      if (identity.startsWith(AWALAN_PELAPOR)) return 'pelapor';
+      if (identity.startsWith('petugas-')) return 'petugas';
+      return 'warga';
+    }
+    const NAMA_PERAN = { pelapor: 'Pelapor', petugas: 'Petugas', warga: 'Warga' };
+    const namaPeserta = (r, identity) => r.remoteParticipants.get(identity)?.name || NAMA_PERAN[peranDari(identity)];
+
+    async function muatDaftar() {
+      let daftar = [];
+      try {
+        const r = await fetch('/api/live/siaran', { cache: 'no-store' });
+        daftar = r.ok ? await r.json() : [];
+      } catch {}
+      const ul = $('list');
+      ul.replaceChildren(
+        ...daftar.map((s) => {
+          const tombol = el('button', 'kartu');
+          tombol.setAttribute('aria-current', String(aktif?.ruang === s.ruang));
+          const lencana = el('span', 'lencana');
+          lencana.append(el('span', 'titik'), 'LIVE');
+          const meta = el('div', 'meta');
+          meta.append(
+            el('span', null, s.nama),
+            el('span', null, `${durasi(Date.now() - s.mulai)}`),
+            el('span', null, `${s.penonton} menonton`),
+          );
+          if (s.lat != null) meta.append(el('span', null, `${s.lat.toFixed(4)}, ${s.lng.toFixed(4)}`));
+          if (s.publik) meta.append(el('span', null, 'publik · warga ikut menonton'));
+          tombol.append(lencana, el('span', 'judul', s.judul), meta);
+          tombol.onclick = () => tonton(s);
+          const li = el('li');
+          li.append(tombol);
+          return li;
+        }),
+      );
+      $('kosong').hidden = daftar.length > 0;
+    }
+
+    function tambahKomentar(nama, isi, kelas, peran) {
+      const lapis = $('komentar-lapis');
+      const g = el('div', `gelembung ${kelas ?? ''}`);
+      if (peran === 'pelapor' || peran === 'petugas') g.append(el('span', `peran ${peran}`, NAMA_PERAN[peran]));
+      g.append(el('b', null, nama), isi); // string → text node, bukan HTML
+      lapis.append(g);
+      while (lapis.children.length > 6) lapis.firstChild.remove();
+    }
+
+    function hati(x, y, tunda = 0) {
+      const h = el('span', 'hati', '♥');
+      h.style.left = `${x}px`;
+      h.style.top = `${y}px`;
+      h.style.color = WARNA_HATI[Math.floor(Math.random() * WARNA_HATI.length)];
+      h.style.setProperty('--goyang', `${(Math.random() - 0.5) * 70}px`);
+      h.style.animationDelay = `${tunda}ms`;
+      h.addEventListener('animationend', () => h.remove());
+      $('hati-lapis').append(h);
+    }
+
+    function setSuka(n) {
+      jumlahSuka = n;
+      $('suka').textContent = `♥ ${n}`;
+    }
+
+    function setHadiah(n) {
+      jumlahHadiah = n;
+      $('jumlah-hadiah').textContent = `🎁 ${n}`;
+    }
+
+    function bacaHadiah(teks) {
+      try {
+        const isi = JSON.parse(teks);
+        const hadiah = DAFTAR_HADIAH.find((h) => h.id === isi?.id);
+        if (!hadiah) return null;
+        return { hadiah, jumlah: Math.min(99, Math.max(1, Math.floor(Number(isi.jumlah)) || 1)) };
+      } catch {
+        return null;
+      }
+    }
+
+    function hapusKiriman(kunci) {
+      const k = kiriman.get(kunci);
+      if (!k) return;
+      clearTimeout(k.timer);
+      k.el.remove();
+      kiriman.delete(kunci);
+    }
+
+    function terimaHadiah(kunci, nama, hadiah, jumlah) {
+      setHadiah(jumlahHadiah + jumlah);
+      let k = kiriman.get(kunci);
+      if (!k) {
+        // Paling banyak dua spanduk; Map menyimpan urutan masuk, jadi yang pertama = tertua.
+        while (kiriman.size >= MAKS_JALUR_KIRIMAN) hapusKiriman(kiriman.keys().next().value);
+        const e = el('div', 'kiriman');
+        const teks = el('span', 'teks');
+        teks.append(el('b', null, nama), el('span', null, `mengirim ${hadiah.nama}`));
+        const comboEl = el('span', 'combo');
+        e.append(el('span', 'avatar', (nama.trim()[0] ?? 'P').toUpperCase()), teks, el('span', 'emoji', hadiah.emoji), comboEl);
+        $('kiriman-lapis').append(e);
+        k = { el: e, comboEl, combo: 0, timer: null };
+        kiriman.set(kunci, k);
+      }
+      k.combo += jumlah;
+      k.comboEl.textContent = `x${k.combo}`;
+      k.comboEl.classList.remove('lompat');
+      void k.comboEl.offsetWidth; // ulang animasi lompat
+      k.comboEl.classList.add('lompat');
+      k.el.classList.remove('pudar');
+      clearTimeout(k.timer);
+      k.timer = setTimeout(() => {
+        k.el.classList.add('pudar');
+        k.timer = setTimeout(() => hapusKiriman(kunci), 250);
+      }, TAMPIL_KIRIMAN_MS);
+
+      if (hadiah.besar && antreanSorotan.length < MAKS_ANTRE_SOROTAN) {
+        antreanSorotan.push({ nama, hadiah, jumlah });
+        if (!sorotanJalan) putarSorotan();
+      }
+    }
+
+    function putarSorotan() {
+      const s = antreanSorotan.shift();
+      sorotanJalan = !!s;
+      if (!s) return;
+      const lapis = $('sorotan-lapis');
+      const kotak = lapis.getBoundingClientRect();
+      const wadah = el('div', 'sorotan');
+      wadah.style.setProperty('--lebar', `${kotak.width}px`);
+      const panggung = el('div', 'panggung');
+      panggung.append(el('span', null, s.hadiah.emoji));
+      const ket = el('div', 'ket');
+      ket.append(el('b', null, s.nama), ` mengirim ${s.hadiah.nama}${s.jumlah > 1 ? ` x${s.jumlah}` : ''}`);
+      wadah.append(panggung, ket);
+      for (let i = 0; i < 14; i++) {
+        const t = el('span', 'tetes', '💧');
+        t.style.left = `${Math.random() * (kotak.width - 30)}px`;
+        t.style.fontSize = `${18 + Math.random() * 14}px`;
+        t.style.setProperty('--tinggi', `${kotak.height * 0.8}px`);
+        t.style.animationDelay = `${(0.2 + Math.random() * 0.4) * DURASI_SOROTAN_MS}ms`;
+        wadah.append(t);
+      }
+      lapis.append(wadah);
+      setTimeout(() => {
+        wadah.remove();
+        putarSorotan();
+      }, DURASI_SOROTAN_MS);
+    }
+
+    function bersihkanHadiah() {
+      [...kiriman.keys()].forEach(hapusKiriman);
+      antreanSorotan.length = 0;
+      hadiahTertunda.clear();
+      setHadiah(0);
+    }
+
+    function tampilStatus(teks) {
+      $('status').hidden = !teks;
+      $('status').textContent = teks ?? '';
+    }
+
+    /** Atribut peserta pelapor. Di siaran publik isinya hanya perkiraan, jadi dipakai sampai titik persis tiba. */
+    function lokasiDariAtribut(attr) {
+      if (aktif?.publik && lokasiPersis) return;
+      perbaruiLokasi(attr, !aktif?.publik);
+    }
+
+    function perbaruiLokasi(attr, persis = true) {
+      const lat = Number(attr?.lat);
+      const lng = Number(attr?.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || attr.lat === '' || attr.lng === '') return;
+      lokasi = { lat, lng, akurasi: attr.akurasi ? Number(attr.akurasi) : null, waktu: attr.waktu ? Number(attr.waktu) : Date.now(), persis };
+      $('t-koordinat').textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+      $('t-gmaps').href = `https://www.google.com/maps?q=${lat},${lng}`;
+      // Peta dimuat ulang hanya bila pelapor bergeser > ~50 m, supaya tidak berkedip tiap 5 detik.
+      if (!petaUntuk || Math.abs(petaUntuk.lat - lat) + Math.abs(petaUntuk.lng - lng) > 0.0005) {
+        const d = 0.01;
+        $('peta').src = `https://www.openstreetmap.org/export/embed.html?bbox=${lng - d},${lat - d},${lng + d},${lat + d}&layer=mapnik&marker=${lat},${lng}`;
+        petaUntuk = { lat, lng };
+      }
+    }
+
+    function pelaporDi(r) {
+      return [...r.remoteParticipants.values()].find((p) => p.identity.startsWith(AWALAN_PELAPOR));
+    }
+
+    async function tonton(s) {
+      await keluar();
+      aktif = s;
+      lokasi = null;
+      lokasiPersis = false;
+      petaUntuk = null;
+      $('tonton').hidden = false;
+      $('t-judul').textContent = s.judul;
+      $('t-pelapor').textContent = `Pelapor: ${s.nama} · mulai ${new Date(s.mulai).toLocaleTimeString('id-ID')}`;
+      $('t-koordinat').textContent = '—';
+      $('t-akurasi').textContent = '';
+      $('peta').removeAttribute('src');
+      if (s.lat != null) lokasiDariAtribut({ lat: String(s.lat), lng: String(s.lng) });
+      tampilStatus('Menghubungkan…');
+      muatDaftar();
+
+      const r = await fetch(`/api/live/penonton?ruang=${encodeURIComponent(s.ruang)}`);
+      if (!r.ok) return tampilStatus('Gagal mengambil token penonton.');
+      const { url, token } = await r.json();
+
+      const ruang = new Room({ adaptiveStream: true, dynacast: true });
+      room = ruang;
+      $('komentar-lapis').replaceChildren();
+      $('hati-lapis').replaceChildren();
+      setSuka(0);
+      bersihkanHadiah();
+      ruang.registerTextStreamHandler(TOPIK_KOMENTAR, async (reader, { identity }) => {
+        const isi = (await reader.readAll()).trim().slice(0, BATAS_KOMENTAR);
+        if (!isi || room !== ruang) return;
+        const peran = peranDari(identity);
+        tambahKomentar(namaPeserta(ruang, identity), isi, peran === 'pelapor' ? 'pelapor' : '', peran);
+      });
+      ruang.registerTextStreamHandler(TOPIK_SUKA, async (reader) => {
+        const n = Math.min(50, Math.max(1, parseInt(await reader.readAll(), 10) || 1));
+        if (room !== ruang) return;
+        setSuka(jumlahSuka + n);
+        const kotak = $('hati-lapis').getBoundingClientRect();
+        for (let i = 0; i < Math.min(n, 8); i++) hati(kotak.width - 50 + (Math.random() - 0.5) * 30, kotak.height * 0.75, i * 120);
+      });
+      ruang.registerTextStreamHandler(TOPIK_HADIAH, async (reader, { identity }) => {
+        const k = bacaHadiah(await reader.readAll());
+        if (!k || room !== ruang) return;
+        terimaHadiah(`${identity}:${k.hadiah.id}`, namaPeserta(ruang, identity), k.hadiah, k.jumlah);
+      });
+      // Titik persis siaran publik, hanya dikirim pelapor ke peserta petugas-….
+      ruang.registerTextStreamHandler(TOPIK_LOKASI, async (reader, { identity }) => {
+        let isi = null;
+        try { isi = JSON.parse(await reader.readAll()); } catch {}
+        if (room !== ruang || !identity.startsWith(AWALAN_PELAPOR) || typeof isi?.lat !== 'number' || typeof isi?.lng !== 'number') return;
+        lokasiPersis = true;
+        perbaruiLokasi({
+          lat: String(isi.lat),
+          lng: String(isi.lng),
+          akurasi: typeof isi.akurasi === 'number' ? String(Math.round(isi.akurasi)) : '',
+          waktu: typeof isi.waktu === 'number' ? String(isi.waktu) : '',
+        });
+      });
+      ruang
+        .on(RoomEvent.TrackSubscribed, (track) => {
+          if (track.kind === Track.Kind.Video) {
+            track.attach($('video'));
+            tampilStatus(null);
+          } else if (track.kind === Track.Kind.Audio) {
+            const audio = track.attach();
+            audio.hidden = true;
+            document.body.append(audio);
+          }
+        })
+        .on(RoomEvent.TrackUnsubscribed, (track) => track.detach().forEach((e) => e.id !== 'video' && e.remove()))
+        .on(RoomEvent.ParticipantAttributesChanged, (_ubah, p) => {
+          if (p.identity.startsWith(AWALAN_PELAPOR)) lokasiDariAtribut(p.attributes);
+        })
+        .on(RoomEvent.ConnectionQualityChanged, (q, p) => {
+          if (p.identity.startsWith(AWALAN_PELAPOR)) $('kualitas').textContent = `Sinyal pelapor: ${KUALITAS[q]}`;
+        })
+        .on(RoomEvent.ParticipantDisconnected, (p) => {
+          if (p.identity.startsWith(AWALAN_PELAPOR)) tampilStatus('Pelapor mengakhiri siaran.');
+        })
+        .on(RoomEvent.Reconnecting, () => tampilStatus('Koneksi terputus — menyambung ulang…'))
+        .on(RoomEvent.Reconnected, () => tampilStatus(null))
+        .on(RoomEvent.AudioPlaybackStatusChanged, () => ($('suara').hidden = ruang.canPlaybackAudio))
+        .on(RoomEvent.Disconnected, () => {
+          if (room === ruang) tampilStatus('Siaran berakhir.');
+        });
+
+      try {
+        await ruang.connect(url, token);
+      } catch (e) {
+        return tampilStatus(`Tidak bisa bergabung: ${e.message}`);
+      }
+      const pelapor = pelaporDi(ruang);
+      if (!pelapor) tampilStatus('Pelapor sudah tidak ada di ruang ini.');
+      else {
+        lokasiDariAtribut(pelapor.attributes);
+        $('kualitas').textContent = `Sinyal pelapor: ${KUALITAS[pelapor.connectionQuality]}`;
+        if (!pelapor.videoTrackPublications.size) tampilStatus('Menunggu video dari pelapor…');
+      }
+      ruang.startAudio().catch(() => {});
+      $('suara').hidden = ruang.canPlaybackAudio;
+    }
+
+    async function keluar() {
+      const lama = room;
+      room = null;
+      aktif = null;
+      if (lama) await lama.disconnect();
+      document.querySelectorAll('body > audio').forEach((a) => a.remove());
+      $('tonton').hidden = true;
+      muatDaftar();
+    }
+
+    // Ketuk video = hati. Ketukan beruntun digabung per 400 ms jadi satu pesan.
+    $('pemutar').addEventListener('click', (e) => {
+      if (!room) return;
+      const kotak = e.currentTarget.getBoundingClientRect();
+      hati(e.clientX - kotak.left, e.clientY - kotak.top);
+      setSuka(jumlahSuka + 1);
+      sukaTertunda += 1;
+      if (pengaturSuka) return;
+      pengaturSuka = setTimeout(() => {
+        const n = sukaTertunda;
+        sukaTertunda = 0;
+        pengaturSuka = null;
+        room?.localParticipant
+          .sendText(String(n), { topic: TOPIK_SUKA })
+          .catch((err) => tambahKomentar('Sistem', `Hati gagal terkirim: ${err.message}`, ''));
+      }, 400);
+    });
+
+    $('form-komentar').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const isi = $('isi-komentar').value.trim().slice(0, BATAS_KOMENTAR);
+      if (!isi || !room) return;
+      try {
+        await room.localParticipant.sendText(isi, { topic: TOPIK_KOMENTAR });
+        tambahKomentar('Anda', isi, 'saya');
+        $('isi-komentar').value = '';
+      } catch (err) {
+        tambahKomentar('Sistem', `Komentar gagal terkirim: ${err.message}`, '');
+      }
+    });
+
+    // Kirim hadiah: tampil langsung di sini, lalu ketukan beruntun digabung per 400 ms per hadiah.
+    $('grid-hadiah').replaceChildren(
+      ...DAFTAR_HADIAH.map((h) => {
+        const b = el('button', `tombol-hadiah${h.besar ? ' besar' : ''}`);
+        b.type = 'button';
+        b.title = h.besar ? `${h.nama} — tampil selayar penuh` : h.nama;
+        b.append(el('span', 'emoji', h.emoji), el('span', null, h.nama));
+        b.onclick = () => {
+          if (!room) return;
+          terimaHadiah(`saya:${h.id}`, 'Anda', h, 1);
+          hadiahTertunda.set(h.id, (hadiahTertunda.get(h.id) ?? 0) + 1);
+          if (pengaturHadiah) return;
+          pengaturHadiah = setTimeout(() => {
+            pengaturHadiah = null;
+            for (const [id, jumlah] of hadiahTertunda) {
+              room?.localParticipant
+                .sendText(JSON.stringify({ id, jumlah }), { topic: TOPIK_HADIAH })
+                .catch((err) => tambahKomentar('Sistem', `Hadiah gagal terkirim: ${err.message}`, ''));
+            }
+            hadiahTertunda.clear();
+          }, 400);
+        };
+        return b;
+      }),
+    );
+
+    $('keluar').onclick = keluar;
+    $('suara').onclick = () => room?.startAudio();
+
+    setInterval(() => {
+      if (aktif) $('durasi').textContent = durasi(Date.now() - aktif.mulai);
+      if (lokasi) {
+        const umur = Math.round((Date.now() - lokasi.waktu) / 1000);
+        $('t-akurasi').textContent = [
+          !lokasi.persis && 'perkiraan ±1 km (siaran publik; titik persis menyusul)',
+          lokasi.akurasi != null && `akurasi ±${lokasi.akurasi} m`,
+          `diperbarui ${umur < 5 ? 'baru saja' : `${umur} dtk lalu`}`,
+        ].filter(Boolean).join(' · ');
+      }
+    }, 1000);
+    setInterval(muatDaftar, 4000);
+    muatDaftar();
+  </script>
+</body>
+</html>
