@@ -2,14 +2,27 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEvent, useEventListener } from 'expo';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
-import { Fonts } from '@/constants/theme';
+import { Fonts, Media } from '@/constants/theme';
 import { LEBAR_LAYAR_PX, urlGambar, urlMedia } from '@/lib/umpan';
+import { PENYANGGA_VIDEO } from '@/lib/video';
 
 /** Ketukan ditangkap gestur di MediaUmpan (bersama cubit & ketuk ganda), lalu diteruskan ke sini. */
-export type KendaliVideo = { ketuk: () => void };
+export type KendaliVideo = {
+  /** Jeda/putar; bila galat, muat ulang sumbernya. */
+  ketuk: () => void;
+  /** Maju/mundur sekian detik. */
+  geser: (detik: number) => void;
+  /** Lompat ke posisi 0–1 dari durasi. */
+  keFraksi: (fraksi: number) => void;
+  /** Layar penuh bawaan HP (kontrol bawaan, bisa diputar mendatar). */
+  layarPenuh: () => void;
+};
+
+/** Keadaan pemutar untuk kontrol di luar (gaya Netflix di detail laporan). */
+export type StatusPutar = { main: boolean; detik: number; durasi: number; memuat: boolean; galat: boolean };
 
 /**
  * Pemutar video kartu umpan. Dimuat malas oleh media-umpan.tsx, hanya bila
@@ -25,9 +38,21 @@ export default function VideoUmpan({
   penuh,
   putar,
   bisu,
+  kontrolLuar = false,
+  latar = false,
+  onPutaran,
 }: {
   /** Dipanggil saat pemutar siap (dan null saat dilepas) — MediaUmpan meneruskan ketukan lewat sini. */
   onKendali?: (kendali: KendaliVideo | null) => void;
+  /** Kontrol digambar di luar (detail laporan): tanpa ikon ▶ dan garis kemajuan sendiri. */
+  kontrolLuar?: boolean;
+  /**
+   * Video latar (hero beranda): tanpa kontrol, putaran, pesan galat, maupun label aksesibilitas —
+   * ketukannya milik tampilan di luar. Bila gagal dimuat, sampul tetap tampil.
+   */
+  latar?: boolean;
+  /** Posisi & keadaan putar, kira-kira empat kali sedetik. */
+  onPutaran?: (status: StatusPutar) => void;
   uri: string;
   sampul: string | undefined;
   penuh: boolean;
@@ -38,6 +63,7 @@ export default function VideoUmpan({
     p.loop = true;
     p.muted = bisu;
     p.timeUpdateEventInterval = 0.25;
+    p.bufferOptions = PENYANGGA_VIDEO;
   });
   const { status } = useEvent(player, 'statusChange', { status: player.status });
   const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
@@ -61,6 +87,17 @@ export default function VideoUmpan({
     if (player.duration > 0) setKemajuan(Math.min(1, currentTime / player.duration));
   });
 
+  const tampilan = useRef<VideoView>(null);
+  useEffect(() => {
+    onPutaran?.({
+      main: isPlaying,
+      detik: kemajuan * (player.duration || 0),
+      durasi: player.duration || 0,
+      memuat: status === 'loading',
+      galat: status === 'error',
+    });
+  }, [onPutaran, isPlaying, kemajuan, status, player]);
+
   useEffect(() => {
     setelBisu(player, bisu);
   }, [player, bisu]);
@@ -73,6 +110,15 @@ export default function VideoUmpan({
 
   useEffect(() => {
     onKendali?.({
+      geser(detik) {
+        player.seekBy(detik);
+      },
+      keFraksi(fraksi) {
+        if (player.duration > 0) player.currentTime = Math.max(0, Math.min(1, fraksi)) * player.duration;
+      },
+      layarPenuh() {
+        void tampilan.current?.enterFullscreen().catch(() => {});
+      },
       ketuk() {
         // Galat (sinyal putus, server sibuk): ketukan memuat ulang sumbernya — play() saja tidak.
         if (player.status === 'error') {
@@ -96,14 +142,16 @@ export default function VideoUmpan({
 
   return (
     <View
-      accessible
-      accessibilityLabel={isPlaying ? 'Video diputar — ketuk untuk jeda' : 'Video dijeda — ketuk untuk putar'}
+      accessible={!latar}
+      accessibilityLabel={latar ? undefined : isPlaying ? 'Video diputar — ketuk untuk jeda' : 'Video dijeda — ketuk untuk putar'}
+      importantForAccessibility={latar ? 'no-hide-descendants' : 'auto'}
       style={StyleSheet.absoluteFill}>
       {/* Di Android, VideoView menelan sentuhan lalu mengirim tiruannya ke JS
           (lihat VideoView.kt di expo-video), sehingga ketukan batal dan geseran
           tersendat. pointerEvents="none": sentuhan langsung ke gestur MediaUmpan. */}
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
         <VideoView
+          ref={tampilan}
           player={player}
           style={StyleSheet.absoluteFill}
           contentFit={penuh ? 'cover' : 'contain'}
@@ -112,7 +160,7 @@ export default function VideoUmpan({
           surfaceType="textureView"
         />
       </View>
-      {!pernahJalan && sampul && (
+      {(!pernahJalan || (latar && status === 'error')) && sampul && (
         <Image
           source={{ uri: urlGambar(sampul, LEBAR_LAYAR_PX) }}
           style={StyleSheet.absoluteFill}
@@ -120,24 +168,24 @@ export default function VideoUmpan({
         />
       )}
 
-      {putar && !dijeda && status === 'loading' && (
+      {!latar && putar && !dijeda && status === 'loading' && (
         <View style={styles.tengah} pointerEvents="none">
-          <ActivityIndicator color="#fff" size="large" />
+          <ActivityIndicator color={Media.teks} size="large" />
         </View>
       )}
-      {putar && dijeda && !isPlaying && (
+      {!kontrolLuar && !latar && putar && dijeda && !isPlaying && (
         <View style={styles.tengah} pointerEvents="none">
-          <Ionicons name="play" size={64} color="rgba(255,255,255,0.85)" />
+          <Ionicons name="play" size={64} color={Media.redup} />
         </View>
       )}
-      {status === 'error' && (
+      {!latar && status === 'error' && (
         <View style={styles.tengah} pointerEvents="none">
-          <Ionicons name="alert-circle-outline" size={40} color="#fff" />
+          <Ionicons name="alert-circle-outline" size={40} color={Media.teks} />
           <Text style={styles.galat}>Video gagal dimuat · ketuk untuk coba lagi</Text>
         </View>
       )}
 
-      {putar && (
+      {!kontrolLuar && !latar && putar && (
         <View style={styles.rel} pointerEvents="none">
           <View style={[styles.isiRel, { width: `${kemajuan * 100}%` }]} />
         </View>
@@ -159,7 +207,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   galat: {
-    color: '#fff',
+    color: Media.teks,
     fontSize: 14,
     fontFamily: Fonts.semibold,
   },
@@ -169,10 +217,10 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: 2,
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: Media.garis,
   },
   isiRel: {
     height: '100%',
-    backgroundColor: '#fff',
+    backgroundColor: Media.teks,
   },
 });

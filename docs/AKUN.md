@@ -2,7 +2,7 @@
 
 Akun **opsional**. Melapor dan siaran tetap bisa tanpa akun, termasuk anonim. Akun menambah:
 
-- **Laporanku**: riwayat laporan dengan status *menunggu / tayang / ditolak*.
+- **Laporan saya**: riwayat laporan dengan status *menunggu / tayang / ditolak*.
 - Nama pelapor terisi otomatis.
 - **Suka & komentar** di beranda. Akun menggantikan captcha Turnstile dan pemeriksaan same-origin
   yang membuat fitur ini tidak bisa dipakai dari aplikasi (lihat [UMPAN.md](UMPAN.md)).
@@ -39,7 +39,7 @@ dicabut → `401`, dan aplikasi otomatis keluar di HP itu.
 | `GET /api/mobile/saya/disukai` 🔒 | — | `{ disukai: number[] }` (id kejadian) |
 | `POST`/`DELETE /api/mobile/laporan/{id}/suka` 🔒 | — | `{ disukai, jumlah }` (`jumlah` = total terbaru) |
 | `POST /api/mobile/laporan/{id}/komentar` 🔒 | `{ isi, balas_ke? }` (≤ 2000) | `201 { komentar: Komentar }` |
-| `POST /api/mobile/laporan` | multipart (lihat [API.md](API.md)) | Dengan 🔒 → masuk Laporanku |
+| `POST /api/mobile/laporan` | multipart (lihat [API.md](API.md)) | Dengan 🔒 → masuk Laporan saya |
 | `POST /api/mobile/laporkan` | `{ jenis: 'komentar'\|'laporan'\|'siaran', id, alasan, catatan? }` (🔒 opsional) | `{ ok: true }`; komentar disembunyikan setelah 3 pelapor |
 | `POST /api/mobile/live/token` | lihat [LIVE.md](LIVE.md) | Dengan 🔒 → nama pelapor dari akun |
 
@@ -101,7 +101,7 @@ memeriksa `aud` bila dijalankan dengan `GOOGLE_WEB_CLIENT_ID=… npm run mock`.
 Dari dev server (`__DEV__`) dengan mock server, tab Profil menampilkan **Masuk uji**: cukup isi
 nama, tanpa Google. Endpoint `POST /api/mobile/masuk/uji` **hanya ada di mock server**.
 
-Status laporan di Laporanku bisa diuji dengan mengubah `"status"` di
+Status laporan di Laporan saya bisa diuji dengan mengubah `"status"` di
 `mock-server/unggahan/<waktu>/laporan.json` menjadi `"tayang"` atau `"ditolak"`.
 
 ## Di situs (fire-buminusantara) — sudah dipasang
@@ -117,7 +117,7 @@ Branch `feat/api-mobile`:
 - **Token sesi**: 32 byte acak sebagai Bearer; yang disimpan hanya sha256-nya di `mobile_sessions`.
   Keluar = baris dihapus.
 - **Pemilik laporan**: `public_reports.reporter_user_id`, diisi hanya bila ada token **dan** tidak anonim.
-  `public_reports.event_id` diisi saat petugas memverifikasi (untuk `beritaId` di Laporanku).
+  `public_reports.event_id` diisi saat petugas memverifikasi (untuk `beritaId` di Laporan saya).
 - **Suka**: tabel `event_likes` yang sama, penanda `sha256("akun:<id>")`. **Komentar**: `simpanKomentar`
   (sensor kata kasar tetap berlaku) dengan `user_id`. Batas laju per akun & per IP.
 - **Masuk uji** (`/api/mobile/masuk/uji`) hanya aktif bila `NODE_ENV !== production` **dan**

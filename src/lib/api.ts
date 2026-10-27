@@ -33,7 +33,7 @@ export type IsianLaporan = {
   titik: { lat: number; lng: number } | null;
   lampiran: Lampiran[];
   /**
-   * Token sesi akun (lib/akun.ts) supaya laporan masuk "Laporanku". Pemanggil
+   * Token sesi akun (lib/akun.ts) supaya laporan masuk "Laporan saya". Pemanggil
    * mengisinya null bila anonim: laporan anonim tidak boleh terikat ke akun.
    */
   token: string | null;
@@ -51,7 +51,7 @@ const PESAN_TERPUTUS =
 
 /** Putus setelah berkas terunggah penuh: server mungkin sudah menyimpannya, kirim ulang bisa ganda. */
 const PESAN_MUNGKIN_TERKIRIM =
-  'Koneksi terputus saat server memproses laporan — laporan Anda mungkin sudah diterima. Bila masuk dengan akun, cek Laporanku sebelum mengirim ulang.';
+  'Koneksi terputus saat server memproses laporan — laporan Anda mungkin sudah diterima. Bila masuk dengan akun, cek Profil › Laporan saya sebelum mengirim ulang.';
 
 export function kirimLaporan(isian: IsianLaporan, onProgres: (p: Progres) => void): Pengiriman {
   return MODE_DEMO ? kirimDemo(isian, onProgres) : kirimSungguhan(isian, onProgres);

@@ -1,10 +1,10 @@
-# Lapor Karhutla — aplikasi mobile
+# Laporin — aplikasi mobile Lapor Karhutla
 
-Aplikasi pelaporan kebakaran hutan dan lahan untuk [fire.nusantara.earth](https://fire.nusantara.earth/id).
-Bentuknya seperti aplikasi video pendek: **beranda** berisi laporan selayar penuh yang digeser ke
-atas/bawah, tombol **➕** untuk melapor, dan **profil** dengan login Google (opsional). Pelaporan memakai foto/rekam langsung dari kamera
-dengan **GPS live**, atau **siaran langsung** ke petugas lewat LiveKit. Dibangun dengan Expo SDK 57 +
-Expo Router.
+Aplikasi pelaporan kebakaran hutan dan lahan untuk [fire.nusantara.earth](https://fire.nusantara.earth/id),
+bermerek **Laporin**. **Beranda** berisi sorotan dan baris poster laporan terverifikasi, tombol **Lapor**
+di tengah bilah bawah membuka formulir dua langkah, dan **profil** dengan login Google/Apple (opsional).
+Pelaporan memakai foto/rekam langsung dari kamera dengan **GPS live**, atau **siaran langsung** ke
+petugas lewat LiveKit. Dibangun dengan Expo SDK 57 + Expo Router.
 
 - Beranda, peta, dan fitur lapor (kamera, galeri, GPS, kirim) berjalan di **Expo Go**.
 - **Siaran langsung** butuh **development build**, karena WebRTC adalah modul native yang tidak
@@ -12,39 +12,72 @@ Expo Router.
 
 ## Desain
 
-Tampilan mengikuti Figma Make **"Disaster Reporting App Design"**: layar media (beranda, kamera,
-siaran) gelap kehijauan, halaman (jelajah, profil, formulir) terang, aksen hijau limau `#b8f34a`,
-huruf DM Sans + Manrope. Token warna & huruf ada di `src/constants/theme.ts`: `Colors` (terang/gelap),
-`Media` (layar media), `Fonts`. Di latar terang, teks aksen memakai `accentText` (hijau tua), bukan
-limau, supaya terbaca.
+Tampilan mengikuti desain **"SAKSI — witness network for disaster photo & video"** (kanvas desain
+Claude "Disaster Video App": Feed, Post detail, Live broadcast, Comments, Report, sampul). Merek contoh
+"SAKSI" diganti **LAPORIN.**, jenis kejadiannya tetap karhutla. Tiga warna: **tinta** `#0C0E0D`
+(latar), **tulang** `#EDE8DF` (teks, tombol terang, bilah bawah), **sinyal** `#FF4A1C` (aksen; teks di
+atasnya tinta). Keterangan, garis, dan panel = tulang tembus pandang di atas tinta. **Mode gelap persis
+desain**, **mode terang** padanannya dibalik (latar tulang, teks tinta, bilah tinta); tema mengikuti
+mode HP. Huruf **Poppins** untuk semuanya, sama dengan situs (desain aslinya memakai Big Shoulders
+Display, Inter Tight, dan JetBrains Mono): judul huruf biasa, label kecil & tombol utama kapital. Ikon
+Feather/Ionicons. Token ada di `src/constants/theme.ts`:
+`Colors` (terang/gelap), `Media` (kamera, siaran & story yang tetap gelap), `Fonts`, `Bayangan`.
+Komponen dasar: `merek.tsx` (wordmark), `bilah-atas.tsx` (bilah atas + tombol ikon bulat bergaris),
+`poster-laporan.tsx` (judul bagian, baris geser, kisi kartu, kartu laporan), `chip-filter.tsx`,
+`avatar.tsx`, `tombol.tsx` (pil: `primer` sinyal · `terang` tulang/tinta · `sekunder` bergaris ·
+`teks`), `isian.tsx`, `lembar-pilihan.tsx`.
 
-Bilah bawah: **Beranda · Jelajah · ➕ Lapor · Live · Profil**.
+Bilah bawah **melayang** (pil tulang di atas isi): **Beranda · Peta · LAPOR · Live · Profil**; Lapor =
+pil sinyal berikon kamera. Layar tab memberi ruang di ujung gulungannya (`ruangBilahBawah`). Pencarian
+dibuka dari ikon 🔍 dan Notifikasi dari ikon 🔔 di kepala beranda.
 
-**Pengecualian: Beranda** sengaja memakai tampilan umpan sebelumnya (ala TikTok, huruf sistem,
-tombol aksi tanpa lingkaran, bilah bawah hitam pekat), bukan layar "Home" dari Figma.
+Teks dibuat seringkas mungkin dan tidak diulang; angka 0 tidak ditampilkan. Foto/video bukti tidak
+ditimpa tombol atau teks (judul kartu ada di pita di bawah foto); pengecualian satu-satunya kartu
+sorotan beranda, yang memang sampul bergaya poster.
+
+Bagian desain yang datanya belum ada di situs **tidak** ditampilkan sebagai data palsu: nomor
+laporan, pengikut, live terjadwal, unduhan, tingkat kedaruratan (pengguna memilih tidak memakainya),
+dan estimasi waktu verifikasi tidak dibuat. Dua fitur dibuat **di HP saja** karena situs belum
+menyimpannya: **Simpan/Tersimpan** (`lib/simpan.ts`) dan **Notifikasi** = kabar status laporanmu
+sendiri (`lib/notifikasi.ts`).
 
 ## Beranda
 
-- **Umpan selayar penuh**, isinya sama dengan daftar di beranda situs (`GET /api/umpan`). Video
-  diputar otomatis dan berulang (ketuk untuk jeda). Laporan dengan beberapa foto/video bisa digeser
-  ke samping.
-- **Terbaru · Terdekat**: Terdekat mengurutkan menurut jarak dari posisi warga.
-- Tombol samping: ❤️ suka, 💬 komentar (lembar dari bawah), bagikan tautan laporan, lihat di peta,
-  dan suara. **Ketuk ganda** = suka, **cubit** = perbesar (kembali saat dilepas), ketuk = jeda video.
-- **Tekan lama** foto/video (seperti TikTok) → **Mode bersih** atau **Laporkan**. Mode bersih
-  menyembunyikan tombol, cerita, dan bilah atas sehingga hanya media yang tampil; laporan tetap bisa
-  digeser. Keluar lewat tombol ⤡ di kanan atas atau tekan lama lagi.
-- Kiri atas **LIVE** (siaran langsung), kanan atas **Peta**: titik semua laporan. Ketuk penanda
-  lalu **Tonton** untuk membuka laporannya di beranda.
-- **Siaran warga lain** yang dipilih tampil publik muncul sebagai kartu **LIVE** di atas umpan
-  (pratinjau video bisu, avatar bercincin merah). Ketuk untuk menonton, berkomentar, mengetuk hati,
-  dan mengirim hadiah. Lihat [docs/LIVE.md](docs/LIVE.md#ditonton-warga-siaran-publik).
-- **Profil** ala TikTok: masuk dengan Google, angka Laporan · Tayang · Disukai, grid **Laporanku**
-  (dengan status verifikasi) dan **Disukai**, edit profil, pengaturan & keluar. Lihat
-  [docs/AKUN.md](docs/AKUN.md).
-- **➕**: kamera terbuka langsung → foto/video/unggah dari galeri → **Lanjut** ke isian judul dan
-  cerita → kirim. Mode **LIVE** di kamera membuka siaran langsung. Kalau ada draf yang belum
-  terkirim, ➕ melanjutkannya.
+- **Kepala**: merek bermono (ditambah jumlah siaran live bila ada; ketuk = tab Live), 🔍 dan 🔔. Lalu
+  judul besar berisi jumlah laporan ("85 LAPORAN / DARI 5 PULAU", atau "… DI PAPUA" saat disaring).
+- **Chip pulau** (SEMUA · KALIMANTAN · PAPUA …, urut jumlah laporan) menyaring judul, sorotan, dan kisi.
+- **Kartu sorotan** (lebih tinggi dari desain supaya videonya jelas): laporan terbaru yang bergambar —
+  provinsi, judul, kredit, suka, komentar, tombol putar → detail. Laporan bervideo memutar videonya sendiri tanpa suara (tombol
+  🔇 menyalakan suara), berhenti saat kartunya tergulir lewat, Beranda ditinggalkan, atau aplikasi ke
+  latar belakang.
+- **TERBARU ● n LAPORAN** dan **LIHAT SEMUA →** (membuka Pencarian, untuk pulau itu bila sedang
+  disaring), lalu **kisi berundak 2 kolom** (12 laporan berikutnya, tinggi foto berselang-seling seperti
+  desain, tanpa geser ke samping): label media di pojok foto, judul, tempat · tanggal → detail. Siaran
+  publik ada di tab **Live**.
+- **Pencarian** (`app/cari.tsx`) dan **Notifikasi** (`app/notifikasi.tsx`): lihat di bawah.
+- **Detail laporan** (`app/laporan/[id].tsx`), artboard Post detail: pemutar di atas bersudut bawah —
+  video dengan kontrol Netflix (`umpan/kontrol-video.tsx`: ketuk = kontrol, mundur/maju 10 detik, ketuk
+  bilah posisi untuk melompat, layar penuh bawaan HP), foto bisa dicubit, **ketuk ganda** = suka; tombol
+  kembali, label provinsi · urutan media, dan segmen per media (ketuk = pindah) — lalu baris penulis
+  (kredit, jumlah laporannya, **Simpan**), judul, cerita, lajur **LOKASI** (ketuk = peta) · **TANGGAL** ·
+  **SUMBER**, Suka · Komentar · Bagikan · **Laporkan**, dan tab **Episode** (tiap foto/video laporan = satu
+  episode: gambar kecil, durasi, garis sudah ditonton; ketuk = tampil di pemutar) serta **Laporan Serupa**
+  (kisi 3 kolom). Tekan lama media → **Laporkan**.
+- **Komentar** (lembar, artboard Comments): "KOMENTAR n", urutan Terbaru/Terlama, Balas · Laporkan, kolom
+  tulis berbentuk pil. **Laporkan** (lembar, artboard Report): alasan bernomor, rincian, Kirim laporan.
+- **Peta** (tab): penanda semua laporan, pemilih pulau (ikon lapisan), tombol lokasiku, lembar bawah
+  berisi jumlah kejadian (radius 50 km bila lokasi diketahui) dan laporan terpilih/terdekat.
+- **Live** (tab, `app/(tabs)/siaran.tsx`): judul jumlah siaran, ajakan **Mulai live** ke petugas, dan kisi
+  siaran publik. Layar siaran & tonton mengikuti artboard Live broadcast (lencana LIVE, durasi, penonton,
+  komentar bernama mono, tombol samping); pita berjalan dan SOS di desain tidak dibuat karena belum ada
+  datanya.
+- **Lapor** (`app/lapor.tsx`): dua langkah — **jenis kejadian** (mengisi judul awal; server belum punya
+  kolom jenis), lalu **detail**: judul, lokasi (GPS live / titik dari kamera / manual) dengan pratinjau
+  peta, cerita, foto & video, anonim/nama → **Kirim Laporan**. Isian tersimpan sebagai draf; halaman
+  sukses (`app/terkirim.tsx`) memuat garis waktu status.
+- **Profil**: masuk dengan Google/Apple, angka Laporan · Terverifikasi · Disukai, tab **Laporan** (dengan
+  status verifikasi) · **Disukai** · **Tersimpan** berupa kisi, edit profil, pengaturan & keluar.
+  Lihat [docs/AKUN.md](docs/AKUN.md).
 - Menyukai dan berkomentar butuh akun (Google, atau Apple di iPhone). Semuanya di dalam aplikasi, tanpa
   membuka situs. Tekan lama komentar → **Laporkan** atau **Blokir** penulisnya. Pengaturan memuat
   Ketentuan, Kebijakan Privasi, Hubungi kami, dan **Hapus akun**. Lihat [docs/AKUN.md](docs/AKUN.md).
@@ -123,10 +156,14 @@ muncul di atas beranda. Integrasi produksi ke situs: [docs/LIVE.md](docs/LIVE.md
 src/
   app/                    ← rute Expo Router (setiap berkas = satu layar)
     _layout.tsx           Stack navigator + tema
-    (tabs)/_layout.tsx    tab Beranda · ➕ · Profil (bilah bawah kustom)
-    (tabs)/index.tsx      beranda: umpan laporan selayar penuh
-    (tabs)/profil.tsx     profil ala TikTok: Laporanku / Disukai, atau panel masuk
-    peta.tsx              peta laporan (memuat react-native-maps hanya bila tersedia)
+    (tabs)/_layout.tsx    tab Beranda · Peta · Live · Profil (bilah bawah melayang dengan tombol Lapor)
+    (tabs)/index.tsx      beranda: kepala bermono, judul jumlah laporan, chip pulau, kartu sorotan, kisi 2 kolom
+    (tabs)/peta.tsx       peta laporan (memuat react-native-maps hanya bila tersedia)
+    (tabs)/siaran.tsx     tab Live: siaran publik + mulai siaran
+    (tabs)/profil.tsx     profil: Laporan saya / Disukai / Tersimpan, atau panel masuk
+    cari.tsx              Pencarian: riwayat, wilayah ramai, hasil + urutan
+    notifikasi.tsx        kabar status laporan milik akun
+    laporan/[id].tsx      detail gaya Netflix: pemutar, judul, Putar/Peta, aksi, tab Episode & Laporan Serupa
     komentar/[id].tsx     lembar komentar satu laporan (menulis butuh akun; tekan lama = laporkan/blokir)
     laporkan.tsx          lembar "Laporkan" komentar / laporan / siaran
     ketentuan.tsx         Ketentuan Penggunaan (teks di constants/hukum.ts)
@@ -134,24 +171,35 @@ src/
     masuk.tsx             lembar "masuk dulu" (saat tamu menyukai/berkomentar)
     pengaturan.tsx        pengaturan dan privasi, hukum, hubungi kami, keluar, hapus akun
     profil-ubah.tsx       edit nama profil
-    lapor.tsx             formulir laporan (judul, cerita, lokasi, kirim)
+    lapor.tsx             formulir dua langkah: jenis → detail (judul, lokasi, cerita, foto/video) → kirim
     kamera.tsx            kamera live (foto/video/unggah) + HUD GPS
-    terkirim.tsx          layar sukses
+    terkirim.tsx          halaman sukses + garis waktu status
     live.tsx              siaran langsung (memuat LiveKit hanya di development build)
     tonton/[ruang].tsx    menonton siaran publik warga lain
-  components/             tombol, isian, kartu lokasi, grid lampiran, titik live, bilah bawah
-    umpan/                kartu umpan + media (foto / video expo-video), gestur cubit & ketuk ganda
+    story/[kunci].tsx     penampil story satu provinsi (lanjut ke provinsi berikutnya)
+  components/             merek, bilah atas/bawah, avatar, tombol, isian, kartu lokasi, grid lampiran
+    poster-laporan.tsx    judul bagian, baris geser, kisi berundak (beranda), kisi 2/3 kolom, kartu laporan
+    chip-filter.tsx       chip saringan pil bermono bertitik (pulau di beranda)
+    umpan/                media detail (foto / video expo-video) dengan cubit & ketuk ganda, kontrol video gaya Netflix
+    story/video-story.tsx video satu item story (dimuat malas bila expo-video ada)
     akun/panel-masuk.tsx  pilihan masuk: Apple (iOS), Google, atau "masuk uji" di dev server
     captcha-laporan.tsx   verifikasi Turnstile di WebView untuk laporan tanpa akun
     peta-laporan.tsx      peta + penanda laporan
     live/siaran-live.tsx  layar siaran LiveKit
     live/tonton-live.tsx  layar menonton siaran (penonton warga)
-    live/pratinjau-live.tsx  pratinjau bisu siaran di kartu beranda
-    umpan/kartu-live.tsx  kartu LIVE di umpan beranda
+    live/persiapan-live.tsx  persiapan & akhir siaran (tanpa impor LiveKit)
   lib/
     api.ts                kirim multipart via XHR (progres) + mode demo
     umpan.ts              umpan & komentar dari situs (hanya-baca)
-    akun.ts               sesi akun: login Google/Apple, profil, Laporanku, suka & komentar, hapus akun
+    story.ts              story per provinsi dari umpan + tanda sudah dilihat
+    aksi-laporan.ts       buka detail/komentar/peta, bagikan, menu ⋯ satu laporan
+    jenis-kejadian.ts     jenis kejadian di langkah 1 formulir
+    akun.ts               sesi akun: login Google/Apple, profil, Laporan saya, suka & komentar, hapus akun
+    simpan.ts             laporan tersimpan (bookmark) — hanya di HP
+    notifikasi.ts         kabar status laporan milik akun + tanda sudah dibaca (di HP)
+    riwayat-cari.ts       pencarian terbaru — hanya di HP
+    waktu.ts              "18 menit lalu"
+    video.ts              batas penyangga pemutar video (mencegah kehabisan memori)
     laporkan.ts           kirim laporan konten (Laporkan)
     blokir.ts             penulis komentar yang diblokir di HP ini
     menu-aksi.ts          menu tekan lama (ActionSheet iOS / dialog Android)

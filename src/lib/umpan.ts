@@ -222,9 +222,56 @@ export function urlGambar(path: string, lebarPx: number): string {
   return `${SITUS_URL}/_next/image?url=${encodeURIComponent(path.startsWith('/') ? path : `/${path}`)}&w=${w}&q=75`;
 }
 
+/** Gambar sampul laporan: foto pertama, atau poster video pertama. */
+export function sampulDari(b: Pick<Berita, 'media'>): string | undefined {
+  const m = b.media[0];
+  return m?.jenis === 'video' ? m.poster : m?.url;
+}
+
+/**
+ * "Bukit Tunggal, Kalimantan Tengah": bagian pertama alamat geocode + provinsi. Alamat
+ * lengkapnya terlalu panjang untuk satu baris ("…, Palangkaraya City, Central Kalimantan, …").
+ */
+export function tempatSingkat(b: Pick<Berita, 'lokasi' | 'provinsi'>): string {
+  const awal = b.lokasi?.split(',')[0]?.trim();
+  return [awal, b.provinsi].filter((x, i, a) => x && a.indexOf(x) === i).join(', ');
+}
+
+/** "Bukit Tunggal" — bagian pertama alamat, atau provinsi bila alamat kosong. Untuk baris yang sempit. */
+export function tempatPendek(b: Pick<Berita, 'lokasi' | 'provinsi'>): string {
+  return b.lokasi?.split(',')[0]?.trim() || b.provinsi || '';
+}
+
+/** "21 Oktober 2026" (format situs) → "21 Okt"; tahun ditulis bila bukan tahun ini. */
+export function tanggalSingkat(tanggal: string, tahunIni = new Date().getFullYear()): string {
+  const m = /^(\d{1,2})\s+(\p{L}+)\s+(\d{4})$/u.exec(tanggal.trim());
+  if (!m) return tanggal;
+  const bulan = m[2].slice(0, 3);
+  return Number(m[3]) === tahunIni ? `${m[1]} ${bulan}` : `${m[1]} ${bulan} ${m[3]}`;
+}
+
+/**
+ * Nama di kepala kartu: kredit pengambil foto/video pertama (mis. "Juliana", "Warga Desa
+ * Mangkupadi"). Situs tidak menyimpan nama pelapor di umpan, jadi tanpa kredit = "Laporan warga".
+ */
+export function kreditLaporan(b: Pick<Berita, 'media'>): string {
+  const k = b.media.find((m) => m.keterangan?.trim())?.keterangan?.trim();
+  if (!k) return 'Laporan warga';
+  return /^anonim$/i.test(k) ? 'Anonim' : k;
+}
+
 /** Halaman laporan di situs — untuk dibagikan, atau berkomentar selama aplikasi belum bisa. */
 export function urlHalaman(b: Pick<Berita, 'slug'>): string {
   return b.slug ? `${SITUS_URL}/id/fire/${b.slug}` : `${SITUS_URL}/id`;
+}
+
+/**
+ * -2.2512, 113.951 → "2,25° LS 113,95° BT" (lintang selatan/utara, bujur timur/barat) — untuk kartu
+ * & detail laporan. Koordinat GPS persis (kamera, siaran) memakai `koordinatTeks` di lib/lokasi-live.ts.
+ */
+export function koordinatSingkat(lat: number, lng: number): string {
+  const angka = (x: number) => Math.abs(x).toFixed(2).replace('.', ',');
+  return `${angka(lat)}° ${lat < 0 ? 'LS' : 'LU'} ${angka(lng)}° ${lng < 0 ? 'BB' : 'BT'}`;
 }
 
 /** Jarak lingkaran besar (haversine) dalam km. */

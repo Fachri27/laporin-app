@@ -80,7 +80,7 @@ export const PRIVASI: Bagian[] = [
   {
     judul: 'Data akun (opsional)',
     isi: [
-      'Bila Anda masuk dengan Google atau Apple: nama, alamat email (bisa alamat relay Apple), dan foto profil Google. Dipakai untuk riwayat Laporanku, suka, dan komentar. Nama Anda tampil bersama komentar yang Anda tulis.',
+      'Bila Anda masuk dengan Google atau Apple: nama, alamat email (bisa alamat relay Apple), dan foto profil Google. Dipakai untuk riwayat Laporan saya, suka, dan komentar. Nama Anda tampil bersama komentar yang Anda tulis.',
     ],
   },
   {

@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Fonts, Radius, Spacing } from '@/constants/theme';
+import { Fonts, Media, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { durasiTeks } from '@/lib/batas-laporan';
 import type { Lampiran } from '@/lib/draf-laporan';
@@ -13,30 +13,31 @@ type Props = {
   nonaktif?: boolean;
 };
 
+/** Kisi bukti foto/video di formulir: ubin persegi bersudut 14 dengan label mono kecil di pojok, tanpa menutup isi. */
 export function GridLampiran({ lampiran, onHapus, nonaktif = false }: Props) {
   const w = useTheme();
   return (
     <View style={styles.grid}>
       {lampiran.map((l) => (
-        <View key={l.id} style={[styles.ubin, { backgroundColor: w.border }]}>
+        <View key={l.id} style={[styles.ubin, { backgroundColor: w.surfaceMuted, borderColor: w.border }]}>
           {l.jenis === 'foto' ? (
             <Image source={{ uri: l.uri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
           ) : (
             <View style={[StyleSheet.absoluteFill, styles.video]}>
-              <Ionicons name="videocam" size={28} color="#fff" />
+              <Ionicons name="videocam" size={28} color={Media.teks} />
             </View>
           )}
 
           <View style={styles.lencanaBawah}>
             {l.jenis === 'video' && (
               <View style={styles.lencana}>
-                <Ionicons name="play" size={10} color="#fff" />
-                <Text style={styles.lencanaTeks}>{l.durasi != null ? durasiTeks(l.durasi) : 'Video'}</Text>
+                <Ionicons name="play" size={10} color={Media.teks} />
+                <Text style={styles.lencanaTeks}>{l.durasi != null ? durasiTeks(l.durasi) : 'VIDEO'}</Text>
               </View>
             )}
             {l.titik && (
               <View style={styles.lencana}>
-                <Ionicons name="location" size={10} color="#fff" />
+                <Ionicons name="location" size={10} color={Media.teks} />
               </View>
             )}
           </View>
@@ -47,7 +48,7 @@ export function GridLampiran({ lampiran, onHapus, nonaktif = false }: Props) {
               hitSlop={8}
               onPress={() => onHapus(l.id)}
               style={styles.hapus}>
-              <Ionicons name="close" size={16} color="#fff" />
+              <Ionicons name="close" size={16} color={Media.teks} />
             </Pressable>
           )}
         </View>
@@ -65,11 +66,12 @@ const styles = StyleSheet.create({
   ubin: {
     width: '31.5%',
     aspectRatio: 1,
-    borderRadius: Radius.medium,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 14,
     overflow: 'hidden',
   },
   video: {
-    backgroundColor: '#1a1919',
+    backgroundColor: Media.kartu,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -84,25 +86,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: Radius.pill,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: Media.pil,
   },
   lencanaTeks: {
-    color: '#fff',
-    fontFamily: Fonts.bold,
-    fontSize: 10.5,
-    fontVariant: ['tabular-nums'],
+    color: Media.teks,
+    fontFamily: Fonts.monoTebal,
+    fontSize: 10,
+    letterSpacing: 0.4,
   },
   hapus: {
     position: 'absolute',
     top: 6,
     right: 6,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Media.kaca,
     alignItems: 'center',
     justifyContent: 'center',
   },

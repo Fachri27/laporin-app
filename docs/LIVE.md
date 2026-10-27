@@ -29,6 +29,14 @@ npm run mock      # token + halaman penonton di http://localhost:4000/live
 `.env` aplikasi: `EXPO_PUBLIC_API_URL=http://<IP-laptop>:4000`. HP harus satu Wi-Fi
 dengan laptop, karena HP menghubungi LiveKit langsung di `ws://<IP-laptop>:7880`.
 
+**Dengan situs lokal** (`EXPO_PUBLIC_API_URL=http://<IP-laptop>:3000`, rute `/api/mobile/live/*`
+milik situs): bila port 7880–7882 sudah dipakai LiveKit lain, jalankan server sendiri dengan
+config berporsi lain, mis. `port: 7890`, `rtc.tcp_port: 7891`, `rtc.udp_port: 7892`,
+`rtc.node_ip: <IP-laptop>` (wajib, supaya kandidat ICE yang diumumkan bisa dijangkau HP), dan
+satu pasangan `keys`. Lalu isi `.env.local` situs: `LIVEKIT_URL=ws://<IP-laptop>:7890`,
+`LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` (sama dengan `keys` di config). Tanpa ketiganya
+rute siaran situs menjawab 503 "Siaran langsung belum tersedia".
+
 Aplikasi harus berupa **development build**. Expo Go tidak memuat modul WebRTC:
 
 ```bash
@@ -91,8 +99,8 @@ simpan lewat webhook/agent di server, bukan di klien.
 ## Ditonton warga (siaran publik)
 
 Bawaannya siaran **hanya untuk petugas**. Di layar persiapan, pelapor bisa menyalakan
-**"Tampilkan di beranda warga"**. Kalau dinyalakan, siarannya muncul sebagai kartu LIVE di atas umpan
-beranda: pratinjau video bisu, avatar bercincin merah, lalu ketuk untuk menonton
+**"Tampilkan di beranda warga"**. Kalau dinyalakan, siarannya muncul di baris cincin beranda: avatar
+bercincin merah berlabel LIVE, setelah cincin "Mulai live"; ketuk untuk menonton
 (`app/tonton/[ruang].tsx`). Penonton warga bisa berkomentar, mengetuk hati, dan mengirim hadiah.
 
 ```

@@ -1,16 +1,16 @@
-import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { Avatar } from '@/components/avatar';
 import { Isian } from '@/components/isian';
 import { Tombol } from '@/components/tombol';
-import { Fonts, Spacing } from '@/constants/theme';
+import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { ubahProfil, useAkun } from '@/lib/akun';
 import { BATAS_NAMA } from '@/lib/batas-laporan';
 
-/** Edit profil: nama tampil. Foto mengikuti akun Google. */
+/** Edit profil: nama tampil. Foto mengikuti akun Google. Avatarnya sama dengan kepala Profil (96). */
 export default function LayarUbahProfil() {
   const w = useTheme();
   const { pengguna } = useAkun();
@@ -29,20 +29,15 @@ export default function LayarUbahProfil() {
   }
 
   return (
-    <KeyboardAvoidingView style={styles.fleks}>
+    <KeyboardAvoidingView style={[styles.fleks, { backgroundColor: w.background }]}>
       <ScrollView
         style={{ backgroundColor: w.background }}
         contentContainerStyle={styles.isi}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets>
         <View style={styles.tengah}>
-          {pengguna?.foto ? (
-            <Image source={{ uri: pengguna.foto }} style={styles.avatar} contentFit="cover" />
-          ) : (
-            <View style={[styles.avatar, styles.tengahIsi, { backgroundColor: w.accentSoft }]}>
-              <Text style={[styles.inisial, { color: w.accentText }]}>{(nama.trim()[0] ?? '?').toUpperCase()}</Text>
-            </View>
-          )}
+          {/* Inisial ikut berubah selagi nama diketik. */}
+          <Avatar nama={nama.trim() || '?'} foto={pengguna?.foto} ukuran={96} utama />
           <Text style={[styles.catatan, { color: w.textSecondary }]}>Foto mengikuti akun Google Anda.</Text>
         </View>
 
@@ -57,7 +52,7 @@ export default function LayarUbahProfil() {
         />
         {galat !== '' && <Text style={[styles.galat, { color: w.danger }]}>{galat}</Text>}
 
-        <Tombol judul="Simpan" besar memuat={menyimpan} onPress={() => void simpan()} />
+        <Tombol judul="Simpan" ragam="terang" besar memuat={menyimpan} onPress={() => void simpan()} />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -68,32 +63,22 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   isi: {
-    padding: Spacing.three,
-    gap: Spacing.four,
+    paddingHorizontal: 20,
+    paddingTop: 22,
+    paddingBottom: 24,
+    gap: 22,
   },
   tengah: {
     alignItems: 'center',
-    gap: Spacing.two,
-    paddingTop: Spacing.three,
-  },
-  tengahIsi: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatar: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-  },
-  inisial: {
-    fontSize: 40,
-    fontFamily: Fonts.judulTebal,
+    gap: 12,
   },
   catatan: {
-    fontSize: 12.5,
+    fontFamily: Fonts.regular,
+    fontSize: 13,
   },
   galat: {
-    fontSize: 13.5,
-    marginTop: -Spacing.three,
+    marginTop: -14,
+    fontFamily: Fonts.medium,
+    fontSize: 13,
   },
 });

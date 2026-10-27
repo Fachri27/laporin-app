@@ -1,27 +1,33 @@
+import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useState } from 'react';
-import { ActivityIndicator, Linking, StyleSheet, Text, TextInput, View } from 'react-native';
+import { lazy, Suspense, useState } from 'react';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { TitikLive } from '@/components/titik-live';
 import { Tombol } from '@/components/tombol';
-import { Fonts, Radius, Spacing } from '@/constants/theme';
+import { Fonts, Media, Spacing } from '@/constants/theme';
 import { useKini } from '@/hooks/use-kini';
 import { useTheme } from '@/hooks/use-theme';
 import { koordinat } from '@/lib/batas-laporan';
 import { aturTitik, type Titik } from '@/lib/draf-laporan';
 import { BATAS_UMUR_POSISI_MS, koordinatTeks, masihSegar, ulangiLokasi, useLokasiLive } from '@/lib/lokasi-live';
+import { halanganPeta } from '@/lib/peta-tersedia';
+
+// Dimuat malas: modul native peta tidak boleh dievaluasi di build yang belum siap (lihat peta-tersedia.ts).
+const PetaMini = halanganPeta === null ? lazy(() => import('@/components/peta-mini')) : null;
 
 const LABEL_SUMBER: Record<Titik['sumber'] | 'gps', string> = {
-  gps: 'GPS LIVE',
-  kamera: 'DARI KAMERA',
-  foto: 'DARI FOTO',
-  manual: 'MANUAL',
+  gps: 'GPS live',
+  kamera: 'Dari kamera',
+  foto: 'Dari foto',
+  manual: 'Diisi manual',
 };
 
 /**
- * Titik laporan. Tanpa campur tangan warga ia mengikuti GPS live; begitu ada
- * foto/video dari kamera (atau foto galeri ber-GPS), titiknya dikunci ke posisi
- * saat pengambilan.
+ * Titik laporan: panel "Lokasi kejadian" berkoordinat mono + pratinjau peta. Tanpa campur tangan warga
+ * ia mengikuti GPS live; begitu ada foto/video dari kamera (atau foto galeri ber-GPS), titiknya
+ * dikunci ke posisi saat pengambilan. "Ubah" = isi koordinat manual. Pratinjau peta hanya
+ * tampil bila peta tersedia di build ini; tanpa alamat karena situs tidak menyediakannya.
  */
 export function KartuLokasi({ titik }: { titik: Titik | null }) {
   const w = useTheme();
@@ -37,6 +43,7 @@ export function KartuLokasi({ titik }: { titik: Titik | null }) {
   const posisiDipakai = masihSegar(posisi, kini, BATAS_UMUR_POSISI_MS) ? posisi : null;
   const tampil = titik ?? posisiDipakai;
   const live = sumber === 'gps' && masihSegar(posisi, kini);
+  const adaPeta = PetaMini !== null && tampil !== null;
 
   function bukaManual() {
     const awal = tampil;
@@ -54,110 +61,138 @@ export function KartuLokasi({ titik }: { titik: Titik | null }) {
     setManual(false);
   }
 
+  const keterangan = tampil
+    ? [
+        sumber === 'gps' ? (live ? 'GPS live' : 'GPS') : LABEL_SUMBER[sumber],
+        // Ada peta = akurasi sudah tertulis di pilnya.
+        !adaPeta && tampil.akurasi != null && `±${Math.round(tampil.akurasi)} m`,
+        sumber === 'gps' && posisiDipakai && `diperbarui ${umurTeks(kini - posisiDipakai.waktu)}`,
+        sumber === 'kamera' && 'posisi saat foto/video pertama diambil',
+        sumber === 'foto' && 'lokasi yang tercatat di foto',
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : '';
+
   return (
-    <View style={[styles.kartu, { backgroundColor: w.surface, borderColor: w.border }]}>
-      <View style={styles.kepala}>
-        <Text style={[styles.label, { color: w.textSecondary }]}>Titik lokasi</Text>
-        {tampil && (
-          <View style={[styles.lencana, { backgroundColor: live ? w.accentSoft : w.background }]}>
-            {sumber === 'gps' && <TitikLive warna={live ? w.accentText : w.textSecondary} berdenyut={live} ukuran={6} />}
-            <Text style={[styles.lencanaTeks, { color: live ? w.onAccentSoft : w.textSecondary }]}>
-              {sumber === 'gps' && !live ? 'GPS' : LABEL_SUMBER[sumber]}
-            </Text>
+    <View style={styles.wadah}>
+      <View style={[styles.kartu, { backgroundColor: w.surface, borderColor: w.border }]}>
+        <View style={styles.barisLabel}>
+          {live ? (
+            <TitikLive warna={w.accent} berdenyut ukuran={7} />
+          ) : (
+            <Feather name="map-pin" size={15} color={w.textSecondary} />
+          )}
+          <Text style={[styles.label, { color: w.textSecondary }]}>Lokasi kejadian</Text>
+        </View>
+
+        {tampil ? (
+          <View>
+            <View style={styles.baris}>
+              <Text selectable style={[styles.koordinat, styles.fleks, { color: w.text }]}>
+                {koordinatTeks(tampil.lat, tampil.lng)}
+              </Text>
+              {!manual && (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Ubah titik lokasi secara manual"
+                  hitSlop={10}
+                  onPress={bukaManual}>
+                  <Text style={[styles.ubah, { color: w.accentText }]}>UBAH</Text>
+                </Pressable>
+              )}
+            </View>
+            <Text style={[styles.keterangan, { color: w.textSecondary }]}>{keterangan}</Text>
           </View>
+        ) : (
+          <PesanStatus status={status} onManual={manual ? undefined : bukaManual} />
+        )}
+
+        {manual ? (
+          <View style={styles.manual}>
+            <View style={styles.barisManual}>
+              <TextInput
+                value={latTeks}
+                onChangeText={setLatTeks}
+                placeholder="Latitude"
+                accessibilityLabel="Latitude"
+                keyboardType="numbers-and-punctuation"
+                placeholderTextColor={w.textSecondary}
+                style={[styles.inputManual, { color: w.text, borderColor: w.border, backgroundColor: w.background }]}
+              />
+              <TextInput
+                value={lngTeks}
+                onChangeText={setLngTeks}
+                placeholder="Longitude"
+                accessibilityLabel="Longitude"
+                keyboardType="numbers-and-punctuation"
+                placeholderTextColor={w.textSecondary}
+                style={[styles.inputManual, { color: w.text, borderColor: w.border, backgroundColor: w.background }]}
+              />
+            </View>
+            {galat !== '' && <Text style={[styles.galat, { color: w.danger }]}>{galat}</Text>}
+            <View style={styles.aksi}>
+              <Tombol judul="Batal" ragam="teks" onPress={() => setManual(false)} />
+              <Tombol judul="Simpan titik" ragam="sekunder" onPress={simpanManual} />
+            </View>
+          </View>
+        ) : (
+          tampil &&
+          sumber !== 'gps' && (
+            <View style={styles.aksi}>
+              <Tombol judul="Ikuti GPS live" ikon="navigate" ragam="teks" onPress={() => aturTitik(null)} />
+            </View>
+          )
         )}
       </View>
 
-      {tampil ? (
-        <View style={styles.isi}>
-          <Text selectable style={[styles.koordinat, { color: w.text }]}>
-            {koordinatTeks(tampil.lat, tampil.lng)}
-          </Text>
-          <Text style={[styles.keterangan, { color: w.textSecondary }]}>
-            {[
-              tampil.akurasi != null && `akurasi ±${Math.round(tampil.akurasi)} m`,
-              sumber === 'gps' && posisiDipakai && `diperbarui ${umurTeks(kini - posisiDipakai.waktu)}`,
-              sumber === 'kamera' && 'posisi saat foto/video pertama diambil',
-              sumber === 'foto' && 'lokasi yang tercatat di foto',
-            ]
-              .filter(Boolean)
-              .join(' · ')}
-          </Text>
-        </View>
-      ) : (
-        <PesanStatus status={status} />
-      )}
-
-      {manual ? (
-        <View style={styles.manual}>
-          <View style={styles.barisManual}>
-            <TextInput
-              value={latTeks}
-              onChangeText={setLatTeks}
-              placeholder="Latitude"
-              keyboardType="numbers-and-punctuation"
-              placeholderTextColor={w.textSecondary}
-              style={[styles.inputManual, { color: w.text, borderColor: w.border, backgroundColor: w.background }]}
-            />
-            <TextInput
-              value={lngTeks}
-              onChangeText={setLngTeks}
-              placeholder="Longitude"
-              keyboardType="numbers-and-punctuation"
-              placeholderTextColor={w.textSecondary}
-              style={[styles.inputManual, { color: w.text, borderColor: w.border, backgroundColor: w.background }]}
-            />
+      {PetaMini && tampil && (
+        // Peta sungguhan berpusat di titik, penanda sinyal di tengah, label akurasi di pojok.
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={[styles.peta, { backgroundColor: w.surfaceMuted, borderColor: w.border }]}>
+          <Suspense fallback={null}>
+            <PetaMini lat={tampil.lat} lng={tampil.lng} />
+          </Suspense>
+          <View pointerEvents="none" style={styles.tengah}>
+            <View style={styles.pin}>
+              <Ionicons name="location" size={25} color={w.accent} />
+            </View>
           </View>
-          {galat !== '' && <Text style={[styles.galat, { color: w.danger }]}>{galat}</Text>}
-          <View style={styles.aksi}>
-            <Tombol judul="Batal" ragam="teks" onPress={() => setManual(false)} />
-            <Tombol judul="Simpan titik" ragam="sekunder" onPress={simpanManual} />
-          </View>
-        </View>
-      ) : (
-        <View style={styles.aksi}>
-          {sumber !== 'gps' && (
-            <Tombol judul="Ikuti GPS live" ikon="navigate" ragam="teks" onPress={() => aturTitik(null)} />
+          {tampil.akurasi != null && (
+            <View pointerEvents="none" style={styles.pilAkurasi}>
+              <Text style={styles.teksAkurasi}>AKURASI ±{Math.round(tampil.akurasi)} M</Text>
+            </View>
           )}
-          <Tombol judul="Isi manual" ikon="create-outline" ragam="teks" onPress={bukaManual} />
         </View>
-      )}
-
-      {!tampil && (
-        <Text style={[styles.keterangan, { color: w.textSecondary }]}>
-          Sangat membantu: laporan tanpa titik tidak bisa diverifikasi sampai petugas menemukan lokasinya.
-        </Text>
       )}
     </View>
   );
 }
 
-function PesanStatus({ status }: { status: ReturnType<typeof useLokasiLive>['status'] }) {
+/** Belum ada titik: status GPS singkat dan semua aksinya dalam satu baris. */
+function PesanStatus({ status, onManual }: { status: ReturnType<typeof useLokasiLive>['status']; onManual?: () => void }) {
   const w = useTheme();
-  if (status === 'memuat' || status === 'mencari' || status === 'aktif') {
-    return (
-      <View style={styles.status}>
-        <ActivityIndicator color={w.accentText} />
-        <Text style={[styles.keterangan, { color: w.textSecondary }]}>
-          Mencari sinyal GPS… coba di tempat terbuka.
-        </Text>
-      </View>
-    );
-  }
+  const mencari = status === 'memuat' || status === 'mencari' || status === 'aktif';
   const ditolak = status === 'ditolak';
   return (
     <View style={styles.isi}>
       <View style={styles.status}>
-        <Ionicons name="warning-outline" size={18} color={w.danger} />
-        <Text style={[styles.keterangan, styles.fleks, { color: w.text }]}>
-          {ditolak
-            ? 'Izin lokasi ditolak. Izinkan lokasi di pengaturan, atau isi manual.'
-            : 'GPS mati atau sinyal lemah. Nyalakan lokasi lalu coba lagi, atau isi manual.'}
+        {mencari ? (
+          <ActivityIndicator color={w.accentText} />
+        ) : (
+          <Ionicons name="warning-outline" size={18} color={w.danger} />
+        )}
+        <Text style={[styles.koordinat, styles.fleks, { color: w.text }]}>
+          {mencari ? 'Mencari sinyal GPS…' : ditolak ? 'Izin lokasi ditolak' : 'GPS mati atau sinyal lemah'}
         </Text>
       </View>
       <View style={styles.aksi}>
+        {/* Izin ditolak: lokasi-live memeriksa ulang sendiri saat kembali dari Pengaturan, jadi tanpa "Coba lagi". */}
         {ditolak && <Tombol judul="Buka pengaturan" ragam="teks" onPress={() => void Linking.openSettings()} />}
-        <Tombol judul="Coba lagi" ikon="refresh" ragam="teks" onPress={ulangiLokasi} />
+        {!mencari && !ditolak && <Tombol judul="Coba lagi" ikon="refresh" ragam="teks" onPress={ulangiLokasi} />}
+        {onManual && <Tombol judul="Isi manual" ikon="create-outline" ragam="teks" onPress={onManual} />}
       </View>
     </View>
   );
@@ -171,47 +206,52 @@ function umurTeks(ms: number): string {
 }
 
 const styles = StyleSheet.create({
+  wadah: {
+    gap: 12,
+  },
   kartu: {
     borderWidth: 1,
-    borderRadius: Radius.large,
-    padding: Spacing.three,
+    borderRadius: 16,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
     gap: Spacing.two,
   },
-  kepala: {
+  barisLabel: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 7,
+    minHeight: 16,
   },
   label: {
-    fontFamily: Fonts.bold,
-    fontSize: 12.5,
+    fontFamily: Fonts.monoTebal,
+    fontSize: 10.5,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
   },
-  lencana: {
+  baris: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.one,
-    paddingLeft: Spacing.one,
-    paddingRight: Spacing.two,
-    paddingVertical: 2,
-    borderRadius: Radius.pill,
-  },
-  lencanaTeks: {
-    fontFamily: Fonts.judulTebal,
-    fontSize: 10.5,
-    letterSpacing: 0.8,
+    gap: 10,
   },
   isi: {
     gap: Spacing.one,
   },
   koordinat: {
-    fontFamily: Fonts.mono,
-    fontSize: 18,
-    fontVariant: ['tabular-nums'],
+    fontFamily: Fonts.monoTebal,
+    fontSize: 14,
+  },
+  ubah: {
+    fontFamily: Fonts.monoTebal,
+    fontSize: 11,
+    letterSpacing: 0.6,
   },
   keterangan: {
-    fontFamily: Fonts.regular,
-    fontSize: 12.5,
-    lineHeight: 17,
+    marginTop: 4,
+    fontFamily: Fonts.mono,
+    fontSize: 10.5,
+    lineHeight: 15,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
   },
   status: {
     flexDirection: 'row',
@@ -228,6 +268,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: Spacing.one,
     marginHorizontal: -Spacing.two,
+    marginBottom: -Spacing.one,
   },
   manual: {
     gap: Spacing.two,
@@ -238,9 +279,9 @@ const styles = StyleSheet.create({
   },
   inputManual: {
     flex: 1,
-    height: 44,
+    height: 46,
     borderWidth: 1,
-    borderRadius: Radius.small,
+    borderRadius: 14,
     paddingHorizontal: 12,
     fontFamily: Fonts.mono,
     fontSize: 14,
@@ -248,5 +289,41 @@ const styles = StyleSheet.create({
   galat: {
     fontFamily: Fonts.medium,
     fontSize: 12.5,
+  },
+  peta: {
+    height: 140,
+    borderWidth: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  tengah: {
+    ...StyleSheet.absoluteFill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Lingkaran sinyal pudar bercincin.
+  pin: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,74,28,0.18)',
+    boxShadow: '0 0 0 9px rgba(255,74,28,0.08)',
+  },
+  pilAkurasi: {
+    position: 'absolute',
+    right: 8,
+    bottom: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: Media.kacaTebal,
+  },
+  teksAkurasi: {
+    color: Media.teks,
+    fontFamily: Fonts.monoTebal,
+    fontSize: 10,
+    letterSpacing: 0.5,
   },
 });

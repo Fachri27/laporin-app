@@ -1,3 +1,4 @@
+import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -15,8 +16,11 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Avatar } from '@/components/avatar';
+import { TombolIkon } from '@/components/bilah-atas';
 import { Tombol } from '@/components/tombol';
-import { Fonts, Spacing } from '@/constants/theme';
+import { Fonts, Radius, Spacing } from '@/constants/theme';
+import { useRuangKeyboard } from '@/hooks/use-keyboard-terbuka';
 import { useTheme } from '@/hooks/use-theme';
 import { kirimKomentar, useAkun } from '@/lib/akun';
 import { MODE_DEMO } from '@/lib/api';
@@ -32,16 +36,26 @@ type Tujuan = { id: number; nama: string; akarId: number };
 /** Satu utas yang tampil: komentar akar beserta balasannya, sesudah penulis yang diblokir disaring. */
 type Utas = { komentar: Komentar; akarId: number; balasan: Komentar[] };
 
+type Urutan = 'baru' | 'lama';
+
+const URUTAN: { nilai: Urutan; label: string }[] = [
+  { nilai: 'baru', label: 'TERBARU' },
+  { nilai: 'lama', label: 'TERLAMA' },
+];
+
 /**
- * Komentar satu laporan, sebagai lembar dari bawah. Daftarnya dari situs;
- * menulis butuh akun (docs/AKUN.md) — akun menggantikan captcha Turnstile
+ * Komentar satu laporan, sebagai lembar dari bawah (artboard "Comments"): judul besar
+ * "KOMENTAR n" dengan judul laporan kapital kecil di kanan, pil urutan terbaru/terlama, daftar
+ * bergaris tipis, lalu kolom tulis berbentuk pil dan tombol kirim bulat sinyal. Daftarnya dari
+ * situs; menulis butuh akun (docs/AKUN.md) — akun menggantikan captcha Turnstile
  * yang dipakai form web. Semuanya di dalam aplikasi; tanpa server (mode
  * demo) komentar hanya bisa dibaca.
  */
 export default function LayarKomentar() {
   const w = useTheme();
   const insets = useSafeAreaInsets();
-  const { id, judul } = useLocalSearchParams<{ id: string; slug?: string; judul?: string }>();
+  // tulis=1: dibuka dari kolom komentar di detail laporan — langsung siap mengetik.
+  const { id, tulis, judul } = useLocalSearchParams<{ id: string; slug?: string; judul?: string; tulis?: string }>();
   const akun = useAkun();
   const diblokir = useBlokir();
   const [hasil, setHasil] = useState<Hasil>({ status: 'memuat' });
@@ -50,6 +64,7 @@ export default function LayarKomentar() {
   const [mengirim, setMengirim] = useState(false);
   const [galatKirim, setGalatKirim] = useState('');
   const [balasKe, setBalasKe] = useState<Tujuan | null>(null);
+  const [urutan, setUrutan] = useState<Urutan>('baru');
   const masukan = useRef<TextInput>(null);
 
   async function kirim() {
@@ -93,9 +108,10 @@ export default function LayarKomentar() {
   // Penulis yang diblokir disaring sekali di sini — judul, keadaan kosong, dan daftar memakai hasil yang sama.
   // Akar yang diblokir tidak ikut menyembunyikan balasan orang lain: balasan itu tampil sebagai utas sendiri.
   const terlihat = (k: Komentar) => !k.penulis || !diblokir.has(k.penulis);
+  // Situs mengirim utas terbaru dulu; "Terlama" cukup membaliknya (balasan di dalam utas tetap kronologis).
   const tampil: Utas[] | null =
     hasil.status === 'siap'
-      ? hasil.komentar.flatMap((k) => {
+      ? (urutan === 'lama' ? [...hasil.komentar].reverse() : hasil.komentar).flatMap((k) => {
           const balasan = (k.balasan ?? []).filter(terlihat);
           return terlihat(k)
             ? [{ komentar: k, akarId: k.id, balasan }]
@@ -104,35 +120,54 @@ export default function LayarKomentar() {
       : null;
   const jumlah = tampil?.reduce((n, u) => n + 1 + u.balasan.length, 0) ?? null;
   const bisaBalas = akun.status === 'masuk';
+  const bisaKirim = isi.trim() !== '' && !mengirim;
+  // Lembar dua tinggi di Android hanya dibesarkan penuh saat keyboard muncul — isinya tidak ikut
+  // naik. Ruang setinggi bagian yang tertutup keyboard menjaga kolom tulis tetap di atasnya. iOS: padding KAV.
+  const tertutup = useRuangKeyboard();
+  const ruangKeyboard = Platform.OS === 'android' ? tertutup : 0;
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={[styles.layar, { backgroundColor: w.background }]}>
-      <View style={styles.kepala}>
-        <View style={styles.fleks}>
-          <Text style={[styles.judul, { color: w.text }]}>{jumlah === null ? 'Komentar' : `${jumlah} komentar`}</Text>
-          {judul ? (
-            <Text style={[styles.subjudul, { color: w.textSecondary }]} numberOfLines={1}>
-              {judul}
-            </Text>
-          ) : null}
+      style={[styles.layar, { backgroundColor: w.surface, paddingBottom: ruangKeyboard }]}>
+      {/* Pegangan — iOS sudah punya pegangan bawaan lembar (sheetGrabberVisible). */}
+      {Platform.OS !== 'ios' && <View style={[styles.pegangan, { backgroundColor: w.borderStrong }]} />}
+
+      {/* Kepala: judul + jumlah tanggapan yang tampil (sinyal), judul laporan kapital kecil, tombol tutup. */}
+      <View style={[styles.kepala, { borderBottomColor: w.border }]}>
+        <View style={styles.barisJudul}>
+          <Text accessibilityRole="header" style={[styles.judul, { color: w.text }]}>
+            Komentar{jumlah ? <Text style={{ color: w.accentText }}>{` ${jumlah}`}</Text> : null}
+          </Text>
+          <Text style={[styles.labelLaporan, { color: w.textSecondary }]} numberOfLines={1}>
+            {judul?.toUpperCase()}
+          </Text>
+          <TombolIkon ikon="x" label="Tutup" onPress={() => router.back()} />
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Tutup" onPress={() => router.back()} hitSlop={8} style={styles.tutup}>
-          <Ionicons name="close" size={24} color={w.textSecondary} />
-        </Pressable>
+        {(tampil?.length ?? 0) > 1 && (
+          <View accessibilityRole="tablist" style={styles.barisUrutan}>
+            {URUTAN.map((u) => {
+              const pilih = u.nilai === urutan;
+              return (
+                <Pressable
+                  key={u.nilai}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: pilih }}
+                  onPress={() => setUrutan(u.nilai)}
+                  style={({ pressed }) => [
+                    styles.urutan,
+                    pilih ? { backgroundColor: w.chipAktif, borderColor: w.chipAktif } : { borderColor: w.border },
+                    pressed && styles.ditekan,
+                  ]}>
+                  <Text style={[styles.teksUrutan, { color: pilih ? w.onChipAktif : w.text }]}>{u.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
       </View>
 
-      {/* .safety-note di desain. */}
-      <View style={[styles.catatanAman, { backgroundColor: w.accentSoft }]}>
-        <Ionicons name="shield-checkmark-outline" size={18} color={w.onAccentSoft} />
-        <Text style={[styles.teksCatatanAman, { color: w.onAccentSoft }]}>
-          <Text style={styles.tebal}>Jaga komentar tetap berguna. </Text>
-          Bagikan kondisi terkini dan jalur yang aman.
-        </Text>
-      </View>
-
-      <ScrollView style={styles.fleks} contentContainerStyle={styles.isi} nestedScrollEnabled>
+      <ScrollView style={styles.fleks} contentContainerStyle={styles.isi} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
         {hasil.status === 'memuat' && <ActivityIndicator color={w.accentText} style={styles.pemuat} />}
         {hasil.status === 'galat' && (
           <View style={styles.kosong}>
@@ -140,7 +175,7 @@ export default function LayarKomentar() {
             <Tombol
               judul="Coba lagi"
               ikon="refresh"
-              ragam="teks"
+              ragam="sekunder"
               onPress={() => {
                 setHasil({ status: 'memuat' });
                 setPercobaan((n) => n + 1);
@@ -150,7 +185,7 @@ export default function LayarKomentar() {
         )}
         {hasil.status === 'siap' && tampil?.length === 0 && (
           <View style={styles.kosong}>
-            <Ionicons name="chatbubbles-outline" size={36} color={w.textSecondary} />
+            <Feather name="message-circle" size={34} color={w.textSecondary} />
             <Text style={[styles.teksRedup, { color: w.textSecondary }]}>
               {hasil.komentar.length === 0
                 ? 'Belum ada komentar.'
@@ -159,7 +194,7 @@ export default function LayarKomentar() {
           </View>
         )}
         {tampil?.map((u) => (
-          <View key={u.komentar.id} style={styles.utas}>
+          <View key={u.komentar.id}>
             <BarisKomentar komentar={u.komentar} onBalas={bisaBalas ? () => balas(u.komentar, u.akarId) : undefined} />
             {u.balasan.map((b) => (
               <View key={b.id} style={styles.balasan}>
@@ -170,7 +205,8 @@ export default function LayarKomentar() {
         ))}
       </ScrollView>
 
-      <View style={[styles.kaki, { paddingBottom: insets.bottom + Spacing.two }]}>
+      {/* Kaki: garis atas, kolom tulis berbentuk pil, tombol kirim bulat sinyal. */}
+      <View style={[styles.kaki, { borderTopColor: w.border, paddingBottom: (ruangKeyboard > 0 ? 0 : insets.bottom) + 10 }]}>
         {akun.status === 'masuk' ? (
           <>
             {balasKe && (
@@ -183,32 +219,37 @@ export default function LayarKomentar() {
                 </Pressable>
               </View>
             )}
-            {/* .comment-entry di desain: pil putih berbayang, avatar "Anda", tombol kirim hijau. */}
-            <View style={[styles.barisTulis, { backgroundColor: w.surface }]}>
-              <View style={styles.avatarSaya}>
-                <Text style={styles.inisialSaya}>{(akun.pengguna?.nama.trim()[0] ?? 'A').toUpperCase()}</Text>
+            <View style={styles.barisTulis}>
+              <View style={[styles.kolom, { backgroundColor: w.surfaceMuted, borderColor: w.border }]}>
+                <TextInput
+                  ref={masukan}
+                  autoFocus={tulis === '1'}
+                  value={isi}
+                  onChangeText={setIsi}
+                  placeholder={balasKe ? `Balas ${balasKe.nama}…` : 'Tulis komentar yang membantu…'}
+                  accessibilityLabel="Tulis komentar"
+                  placeholderTextColor={w.textSecondary}
+                  maxLength={2000}
+                  multiline
+                  style={[styles.input, { color: w.text }]}
+                />
               </View>
-              <TextInput
-                ref={masukan}
-                value={isi}
-                onChangeText={setIsi}
-                placeholder={balasKe ? `Balas ${balasKe.nama}…` : 'Tambahkan kabar dari lapangan…'}
-                placeholderTextColor={w.textSecondary}
-                maxLength={2000}
-                multiline
-                style={[styles.input, { color: w.text }]}
-              />
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Kirim komentar"
-                disabled={!isi.trim() || mengirim}
+                accessibilityState={{ disabled: !bisaKirim, busy: mengirim }}
+                disabled={!bisaKirim}
                 onPress={() => void kirim()}
                 hitSlop={6}
-                style={[styles.kirim, (!isi.trim() || mengirim) && styles.mati]}>
+                style={({ pressed }) => [
+                  styles.kirim,
+                  { backgroundColor: pressed ? w.accentPressed : w.accent },
+                  !bisaKirim && !mengirim && styles.redup,
+                ]}>
                 {mengirim ? (
-                  <ActivityIndicator color={w.accentText} size="small" />
+                  <ActivityIndicator color={w.onAccent} size="small" />
                 ) : (
-                  <Ionicons name="send" size={20} color={w.accentText} />
+                  <Feather name="send" size={19} color={w.onAccent} style={styles.ikonKirim} />
                 )}
               </Pressable>
             </View>
@@ -219,16 +260,26 @@ export default function LayarKomentar() {
             Menulis komentar butuh koneksi ke server aplikasi (mode demo).
           </Text>
         ) : (
-          <Tombol
-            judul="Masuk untuk berkomentar"
-            ikon="person-outline"
-            ragam="sekunder"
+          // Tamu: kolom yang sama, mengetuknya membuka lembar masuk.
+          <Pressable
+            accessibilityRole="button"
             onPress={() => router.push({ pathname: '/masuk', params: { alasan: 'untuk berkomentar' } })}
-          />
+            style={({ pressed }) => [
+              styles.kolom,
+              styles.kolomTamu,
+              { backgroundColor: pressed ? w.border : w.surfaceMuted, borderColor: w.border },
+            ]}>
+            <Feather name="user" size={17} color={w.textSecondary} />
+            <Text style={[styles.teksTamu, { color: w.textSecondary }]}>Masuk untuk berkomentar</Text>
+          </Pressable>
         )}
       </View>
     </KeyboardAvoidingView>
   );
+}
+
+function laporkanKomentar(k: Komentar) {
+  router.push({ pathname: '/laporkan', params: { jenis: 'komentar', id: String(k.id), ringkas: k.isi.slice(0, 120) } });
 }
 
 /** Tekan lama: laporkan komentar, atau blokir penulisnya (syarat toko untuk konten buatan pengguna). */
@@ -238,7 +289,7 @@ function menuKomentar(k: Komentar) {
     {
       label: 'Laporkan komentar',
       merusak: true,
-      aksi: () => router.push({ pathname: '/laporkan', params: { jenis: 'komentar', id: String(k.id), ringkas: k.isi.slice(0, 120) } }),
+      aksi: () => laporkanKomentar(k),
     },
     ...(penulis
       ? [
@@ -262,35 +313,41 @@ function BarisKomentar({
 }: {
   komentar: Komentar;
   kecil?: boolean;
-  /** Ada bila warga sudah masuk — menampilkan tombol "Balas". */
+  /** Ada bila warga sudah masuk — menampilkan "Balas". */
   onBalas?: () => void;
 }) {
   const w = useTheme();
-  const ukuran = kecil ? 28 : 36;
   return (
     <Pressable
       onLongPress={() => menuKomentar(k)}
       delayLongPress={350}
       accessibilityHint="Tekan lama untuk melaporkan atau memblokir"
-      style={styles.baris}>
-      <View style={[styles.avatar, { width: ukuran, height: ukuran, borderRadius: ukuran / 2, backgroundColor: w.surfaceMuted }]}>
-        <Text style={[styles.inisial, { color: w.text, fontSize: kecil ? 11 : 12.5 }]}>
-          {(k.nama.trim()[0] ?? '?').toUpperCase()}
-        </Text>
-      </View>
-      <View style={styles.fleks}>
-        <Text style={[styles.nama, { color: w.text }]}>{k.nama}</Text>
+      style={[styles.baris, { borderBottomColor: w.border }]}>
+      <Avatar nama={k.nama} ukuran={kecil ? 28 : 34} />
+      <View style={styles.badan}>
+        <View style={styles.barisNama}>
+          <Text style={[styles.nama, { color: w.text }]}>{k.nama}</Text>
+          <Text style={[styles.waktu, { color: w.textSecondary }]}>{k.waktu.toUpperCase()}</Text>
+        </View>
         <Text style={[styles.teksKomentar, { color: w.text }]}>
           {k.sebutan ? <Text style={[styles.sebutan, { color: w.accentText }]}>{`@${k.sebutan} `}</Text> : null}
           {k.isi}
         </Text>
-        <View style={styles.barisWaktu}>
-          <Text style={[styles.waktu, { color: w.textSecondary }]}>{k.waktu}</Text>
+        {/* Situs tidak punya suka per komentar, jadi tidak ditampilkan. Blokir ada di tekan lama. */}
+        <View style={styles.aksi}>
           {onBalas && (
-            <Pressable accessibilityRole="button" accessibilityLabel={`Balas ${k.nama}`} onPress={onBalas} hitSlop={8}>
-              <Text style={[styles.waktu, styles.tebal, { color: w.textSecondary }]}>Balas</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Balas ${k.nama}`} onPress={onBalas} hitSlop={6} style={styles.tombolAksi}>
+              <Text style={[styles.teksAksi, { color: w.textSecondary }]}>Balas</Text>
             </Pressable>
           )}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Laporkan komentar ${k.nama}`}
+            onPress={() => laporkanKomentar(k)}
+            hitSlop={6}
+            style={styles.tombolAksi}>
+            <Text style={[styles.teksAksi, { color: w.textSecondary }]}>Laporkan</Text>
+          </Pressable>
         </View>
       </View>
     </Pressable>
@@ -304,52 +361,72 @@ const styles = StyleSheet.create({
   fleks: {
     flex: 1,
   },
+  ditekan: {
+    opacity: 0.75,
+  },
+  pegangan: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    marginTop: 10,
+    marginBottom: 12,
+    borderRadius: Radius.pill,
+  },
   kepala: {
+    paddingTop: Platform.OS === 'ios' ? Spacing.four : 0,
+    borderBottomWidth: 1,
+  },
+  barisJudul: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: Spacing.four,
-    paddingHorizontal: 18,
-    gap: Spacing.two,
+    gap: 12,
+    paddingLeft: 20,
+    paddingRight: 14,
+    paddingBottom: 12,
   },
   judul: {
-    fontFamily: Fonts.judul,
-    fontSize: 16,
+    fontFamily: Fonts.judulTebal,
+    fontSize: 25,
+    letterSpacing: -0.4,
+    lineHeight: 30,
+    paddingTop: 2,
   },
-  subjudul: {
-    marginTop: 2,
-    fontFamily: Fonts.regular,
-    fontSize: 12.5,
-  },
-  tutup: {
-    padding: 4,
-  },
-  catatanAman: {
-    flexDirection: 'row',
-    gap: 9,
-    marginHorizontal: 18,
-    marginTop: 14,
-    padding: 11,
-    borderRadius: 10,
-  },
-  teksCatatanAman: {
+  // Judul laporan yang dikomentari, dipendekkan ke satu baris.
+  labelLaporan: {
     flex: 1,
-    fontFamily: Fonts.regular,
-    fontSize: 13,
-    lineHeight: 18,
+    textAlign: 'right',
+    fontFamily: Fonts.mono,
+    fontSize: 10,
+    letterSpacing: 0.6,
   },
-  tebal: {
-    fontFamily: Fonts.bold,
+  barisUrutan: {
+    flexDirection: 'row',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  urutan: {
+    height: 36,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderRadius: 18,
+  },
+  teksUrutan: {
+    fontFamily: Fonts.monoTebal,
+    fontSize: 11,
+    letterSpacing: 0.66,
   },
   isi: {
-    paddingHorizontal: 18,
-    paddingTop: Spacing.two,
+    paddingHorizontal: 20,
+    paddingBottom: Spacing.two,
   },
   pemuat: {
     marginTop: Spacing.five,
   },
   kosong: {
     alignItems: 'center',
-    gap: Spacing.two,
+    gap: Spacing.three,
     paddingVertical: Spacing.five,
   },
   teksRedup: {
@@ -357,31 +434,39 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-  utas: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(128,128,128,0.25)',
-  },
   balasan: {
-    paddingLeft: 34 + 10,
+    paddingLeft: 34 + 12,
   },
+  // Satu komentar: avatar 34, nama & waktu kapital kecil sebaris, isi, lalu Balas · Laporkan.
   baris: {
     flexDirection: 'row',
-    gap: 10,
-    paddingVertical: 11,
+    alignItems: 'flex-start',
+    gap: 12,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  avatar: {
+  badan: {
+    flex: 1,
+    gap: 5,
+    minWidth: 0,
+  },
+  barisNama: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  inisial: {
-    fontFamily: Fonts.bold,
+    columnGap: 6,
+    rowGap: 2,
   },
   nama: {
     fontFamily: Fonts.bold,
     fontSize: 13,
   },
+  waktu: {
+    fontFamily: Fonts.mono,
+    fontSize: 10,
+    letterSpacing: 0.4,
+  },
   teksKomentar: {
-    marginTop: 3,
     fontFamily: Fonts.regular,
     fontSize: 14,
     lineHeight: 20,
@@ -389,26 +474,32 @@ const styles = StyleSheet.create({
   sebutan: {
     fontFamily: Fonts.bold,
   },
-  barisWaktu: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    marginTop: 3,
+  tebal: {
+    fontFamily: Fonts.bold,
   },
-  waktu: {
-    fontFamily: Fonts.regular,
-    fontSize: 11.5,
+  aksi: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  tombolAksi: {
+    height: 32,
+    justifyContent: 'center',
+  },
+  teksAksi: {
+    fontFamily: Fonts.semibold,
+    fontSize: 12,
   },
   kaki: {
     gap: Spacing.two,
-    paddingTop: Spacing.two,
-    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingHorizontal: 16,
+    borderTopWidth: 1,
   },
   barisBalas: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
   },
   teksBalas: {
     flex: 1,
@@ -424,41 +515,48 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 7,
-    borderRadius: 24,
-    boxShadow: '0 5px 25px rgba(0,0,0,0.1)',
   },
-  avatarSaya: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: 'center',
+  // Pil 48 bergaris; memanjang ke bawah saat komentarnya beberapa baris.
+  kolom: {
+    flex: 1,
+    minHeight: 48,
     justifyContent: 'center',
-    backgroundColor: '#26312c',
-    marginBottom: 3,
-  },
-  inisialSaya: {
-    color: '#fff',
-    fontFamily: Fonts.bold,
-    fontSize: 11,
+    paddingHorizontal: 18,
+    borderWidth: 1,
+    borderRadius: 24,
   },
   input: {
-    flex: 1,
-    minHeight: 36,
     maxHeight: 120,
-    paddingTop: 8,
-    paddingBottom: 8,
+    paddingTop: 13,
+    paddingBottom: 13,
+    paddingHorizontal: 0,
     fontFamily: Fonts.regular,
-    fontSize: 14.5,
+    fontSize: 14,
   },
   kirim: {
-    width: 36,
-    height: 36,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  mati: {
-    opacity: 0.35,
+  // Pesawat kertas Feather condong ke kanan atas: digeser sedikit supaya tampak di tengah.
+  ikonKirim: {
+    marginLeft: -2,
+    marginBottom: -1,
+  },
+  redup: {
+    opacity: 0.4,
+  },
+  kolomTamu: {
+    flex: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: Spacing.two,
+  },
+  teksTamu: {
+    fontFamily: Fonts.medium,
+    fontSize: 14,
   },
 });

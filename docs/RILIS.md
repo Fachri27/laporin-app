@@ -85,7 +85,7 @@ Perubahan modul native = build baru.
   > • Siaran langsung ke petugas supaya kejadian bisa dilihat saat itu juga.
   > • Lapor tanpa akun, bahkan anonim. Laporan diverifikasi petugas sebelum tayang.
   > • Pantau laporan warga lain di beranda dan peta, sukai, dan beri kabar lewat komentar.
-  > • Riwayat "Laporanku" dengan status verifikasi bila masuk dengan Google atau Apple.
+  > • Riwayat "Laporan saya" dengan status verifikasi bila masuk dengan Google atau Apple.
   >
   > Aplikasi ini bukan layanan darurat. Bila ada ancaman langsung, hubungi 112.
 
@@ -101,10 +101,11 @@ Perubahan modul native = build baru.
 - **Rating usia**: jawab kuesioner — ada konten buatan pengguna dengan moderasi dan siaran langsung.
 - **Catatan untuk reviewer** (App Review Information):
 
-  > Akun bersifat opsional. Melapor bisa tanpa akun (tekan ➕, ambil foto, isi judul & cerita, Kirim —
-  > verifikasi singkat Cloudflare muncul di dalam aplikasi). Untuk menyukai/berkomentar, masuk dengan
-  > Sign in with Apple. Moderasi: tekan lama komentar atau kartu laporan → Laporkan / Blokir; tombol
-  > 🚩 di siaran. Hapus akun: Profil → ⚙︎ Pengaturan → Hapus akun. Lokasi hanya dipakai saat aplikasi
+  > Akun bersifat opsional. Melapor bisa tanpa akun (tekan Lapor di tengah bilah bawah, pilih jenis
+  > kejadian, ambil foto, isi judul & cerita, lalu Kirim laporan — verifikasi singkat Cloudflare muncul
+  > di dalam aplikasi). Untuk menyukai/berkomentar, masuk dengan Sign in with Apple. Moderasi: tekan
+  > lama komentar → Laporkan / Blokir; tombol Laporkan di detail laporan (atau tekan lama fotonya); tombol 🚩
+  > di siaran. Hapus akun: Profil → ikon Pengaturan → Hapus akun. Lokasi hanya dipakai saat aplikasi
   > terbuka. Siaran langsung butuh kamera & mikrofon dan hanya ditonton petugas kecuali pelapor
   > memilih "Tampilkan di beranda warga".
 

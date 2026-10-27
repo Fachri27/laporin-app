@@ -1,118 +1,138 @@
+import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PanelMasuk } from '@/components/akun/panel-masuk';
-import { Fonts, Media, Spacing } from '@/constants/theme';
+import { Avatar } from '@/components/avatar';
+import { BilahAtas, TombolIkon } from '@/components/bilah-atas';
+import { ruangBilahBawah } from '@/components/bilah-bawah';
+import { Tombol } from '@/components/tombol';
+import { Colors, Fonts, Media } from '@/constants/theme';
+import { useGulirKeIsian } from '@/hooks/use-gulir-ke-isian';
 import { useTheme } from '@/hooks/use-theme';
+import { bukaLaporan } from '@/lib/aksi-laporan';
 import { ambilLaporanSaya, segarkanAkun, useAkun, type LaporanSaya } from '@/lib/akun';
-import { hitunganTeks, muatUmpan, urlGambar, useUmpan, type Berita } from '@/lib/umpan';
+import { useTersimpan } from '@/lib/simpan';
+import { hitunganTeks, muatUmpan, sampulDari, urlGambar, useUmpan, type Berita } from '@/lib/umpan';
+import { waktuLalu } from '@/lib/waktu';
 
-type Tab = 'laporan' | 'disukai';
+type Tab = 'laporan' | 'disukai' | 'tersimpan';
 
-const BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+const TAB: { kunci: Tab; label: string }[] = [
+  { kunci: 'laporan', label: 'Laporan' },
+  { kunci: 'disukai', label: 'Disukai' },
+  { kunci: 'tersimpan', label: 'Tersimpan' },
+];
 
-function tanggalPendek(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '' : `${d.getDate()} ${BULAN[d.getMonth()]}`;
-}
+/** Satu ubin kisi: laporan milik akun ini, atau laporan umpan (disukai / tersimpan). */
+type Ubin = { jenis: 'saya'; laporan: LaporanSaya } | { jenis: 'berita'; berita: Berita };
 
-function bukaDiBeranda(id: number) {
-  router.navigate({ pathname: '/', params: { laporan: String(id) } });
-}
+const STATUS: Record<LaporanSaya['status'], string> = {
+  tayang: 'Terverifikasi',
+  menunggu: 'Sedang ditinjau',
+  ditolak: 'Ditolak',
+};
 
-/** Profil dari desain: kepala halaman, kartu profil, angka, kartu kontribusi, grid Laporan / Disukai. */
+/** Titik status di pil ubin. Pilnya selalu gelap (di atas foto), jadi warnanya versi gelap. */
+const WARNA_STATUS: Record<LaporanSaya['status'], string> = {
+  tayang: Media.hijau,
+  menunggu: Colors.dark.warning,
+  ditolak: Colors.dark.danger,
+};
+
+/** Kisi tiga kolom berjarak 6, sejajar tepi 16 seperti kartu beranda. */
+const JARAK_UBIN = 6;
+const TEPI = 16;
+
+/**
+ * Profil: wordmark + ikon Pengaturan di atas, kepala profil di tengah, angka tiga kolom
+ * bergaris seperti data laporan di detail, lalu chip Laporan / Disukai / Tersimpan berupa kisi
+ * ubin tiga kolom. Hanya data nyata: tanpa @handle, bio, atau pengikut (situs tidak punya datanya).
+ */
 export default function LayarProfil() {
   const w = useTheme();
-  const insets = useSafeAreaInsets();
   const akun = useAkun();
-
-  const kepalaHalaman = (
-    <View style={[styles.kepalaHalaman, { paddingTop: insets.top + Spacing.three }]}>
-      <View>
-        <Text style={[styles.eyebrow, { color: w.textSecondary }]}>AKUN LAPOR</Text>
-        <Text style={[styles.h1, { color: w.text }]}>Profil</Text>
-      </View>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Pengaturan dan privasi"
-        onPress={() => router.push('/pengaturan')}
-        style={({ pressed }) => [styles.tombolKotak, { backgroundColor: pressed ? w.border : w.surfaceMuted }]}>
-        <Ionicons name="settings-outline" size={20} color={w.text} />
-      </Pressable>
-    </View>
-  );
 
   if (akun.status === 'memuat') {
     return (
-      <View style={[styles.layar, styles.tengah, { backgroundColor: w.background }]}>
-        <ActivityIndicator color={w.accentText} />
-      </View>
-    );
-  }
-
-  if (akun.status === 'tamu') {
-    return (
       <View style={[styles.layar, { backgroundColor: w.background }]}>
-        {kepalaHalaman}
-        {/* Bisa digulir: di layar kecil atau huruf besar panelnya lebih tinggi dari layar. */}
-        <ScrollView
-          style={styles.layar}
-          contentContainerStyle={styles.isiMasuk}
-          keyboardShouldPersistTaps="handled">
-          <PanelMasuk />
-        </ScrollView>
+        <BilahProfil />
+        <ActivityIndicator color={w.accentText} style={styles.pemuat} />
       </View>
     );
   }
 
-  return <ProfilMasuk kepalaHalaman={kepalaHalaman} />;
+  if (akun.status === 'tamu') return <ProfilTamu />;
+
+  return (
+    <View style={[styles.layar, { backgroundColor: w.background }]}>
+      <BilahProfil />
+      <ProfilMasuk />
+    </View>
+  );
 }
 
-function ProfilMasuk({ kepalaHalaman }: { kepalaHalaman: ReactNode }) {
+/** .topbar profil: wordmark di kiri, Pengaturan di kanan. Tetap di atas saat kisi digulir. */
+function BilahProfil() {
+  return (
+    <BilahAtas>
+      <TombolIkon ikon="settings" label="Pengaturan" onPress={() => router.push('/pengaturan')} />
+    </BilahAtas>
+  );
+}
+
+/** Belum masuk: panel masuk. Kolom "masuk uji" ada di bawah, jadi harus naik di atas keyboard. */
+function ProfilTamu() {
   const w = useTheme();
   const insets = useSafeAreaInsets();
+  const gulir = useRef<ScrollView>(null);
+  const gulirKeIsian = useGulirKeIsian(gulir);
+  return (
+    // padding juga di Android: edge-to-edge tidak lagi mengecilkan jendela saat keyboard muncul.
+    <KeyboardAvoidingView behavior="padding" style={[styles.layar, { backgroundColor: w.background }]}>
+      <BilahProfil />
+      {/* Bisa digulir: di layar kecil atau huruf besar panelnya lebih tinggi dari layar. */}
+      <ScrollView
+        ref={gulir}
+        style={styles.layar}
+        contentContainerStyle={[styles.isiMasuk, { paddingBottom: ruangBilahBawah(insets.bottom) }]}
+        keyboardShouldPersistTaps="handled"
+        {...gulirKeIsian}>
+        <View style={[styles.panelMasuk, { backgroundColor: w.surface }]}>
+          <PanelMasuk />
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
+function ProfilMasuk() {
+  const w = useTheme();
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const { pengguna, statistik, disukai, jumlahSuka } = useAkun();
-  const { berita } = useUmpan();
+  const umpan = useUmpan();
+  const tersimpan = useTersimpan();
   const [tab, setTab] = useState<Tab>('laporan');
   const [laporan, setLaporan] = useState<LaporanSaya[] | null>(null);
   const [galat, setGalat] = useState('');
   const [menyegarkan, setMenyegarkan] = useState(false);
-  // Laporan tayang yang belum ada di umpan HP ini: dicari lagi setelah umpan dimuat ulang.
-  const [dicari, setDicari] = useState<{ id: number; judul: string } | null>(null);
-  const sudahDicari = useRef<typeof dicari>(null);
-
-  function bukaLaporan(l: LaporanSaya & { beritaId: number }) {
-    if (berita.some((b) => b.id === l.beritaId)) return bukaDiBeranda(l.beritaId);
-    // Umpan di HP hanya dimuat ulang tiap beberapa menit — beranda tidak akan menemukannya
-    // dan diam-diam membuka kartu teratas. Muat ulang dulu, lalu periksa lagi di efek bawah.
-    void muatUmpan().then(() => setDicari({ id: l.beritaId, judul: l.judul }));
-  }
-
-  // Render setelah muatUmpan selesai sudah membaca umpan terbaru (useSyncExternalStore).
-  useEffect(() => {
-    if (!dicari || sudahDicari.current === dicari) return;
-    sudahDicari.current = dicari;
-    if (berita.some((b) => b.id === dicari.id)) bukaDiBeranda(dicari.id);
-    else
-      Alert.alert(
-        dicari.judul,
-        'Laporan ini sudah tayang, tetapi belum muncul di beranda HP ini. Coba lagi beberapa menit lagi.',
-      );
-  }, [dicari, berita]);
 
   const muat = useCallback(async () => {
     const [hasil] = await Promise.all([ambilLaporanSaya(), segarkanAkun()]);
@@ -133,95 +153,91 @@ function ProfilMasuk({ kepalaHalaman }: { kepalaHalaman: ReactNode }) {
 
   async function segarkan() {
     setMenyegarkan(true);
-    await muat();
+    // Umpan ikut diambil ulang: tab Disukai dan Tersimpan dibentuk dari umpan.
+    await Promise.all([muat(), muatUmpan()]);
     setMenyegarkan(false);
   }
 
-  const daftarDisukai = berita.filter((b) => disukai.has(b.id));
+  const perId = useMemo(() => new Map(umpan.berita.map((b) => [b.id, b])), [umpan.berita]);
+  // Angka suka terbaru dari HP ini (umpan di-cache beberapa menit), seperti di kartu beranda.
+  const sukaDari = (b: Berita) => Math.max(jumlahSuka.get(b.id) ?? b.jumlahSuka, disukai.has(b.id) ? 1 : 0);
+
+  const daftarDisukai = umpan.berita.filter((b) => disukai.has(b.id));
+  // Tersimpan hanya di HP ini, terbaru dulu. Laporan yang sudah tidak ada di umpan dilewati.
+  const daftarTersimpan = tersimpan.flatMap((id) => perId.get(id) ?? []);
+
+  const ubin: Ubin[] =
+    tab === 'laporan'
+      ? (laporan ?? []).map((l) => ({ jenis: 'saya' as const, laporan: l }))
+      : (tab === 'disukai' ? daftarDisukai : daftarTersimpan).map((b) => ({ jenis: 'berita' as const, berita: b }));
+
   const nama = pengguna?.nama ?? 'Akun Anda';
-  const handle = pengguna?.email ? `@${pengguna.email.split('@')[0]}` : null;
-  const menunggu = laporan?.filter((l) => l.status === 'menunggu').length;
   const tayang = statistik?.tayang ?? 0;
+  const lebarUbin = Math.floor((width - TEPI * 2 - JARAK_UBIN * 2) / 3);
 
   const kepala = (
     <View>
-      {kepalaHalaman}
-
-      <View style={styles.isiKepala}>
-        <View style={styles.kartuProfil}>
-          {pengguna?.foto ? (
-            <Image source={{ uri: pengguna.foto }} style={styles.avatar} contentFit="cover" transition={150} />
-          ) : (
-            <View style={[styles.avatar, styles.tengah, styles.avatarInisial]}>
-              <Text style={styles.inisial}>{(nama.trim()[0] ?? '?').toUpperCase()}</Text>
-            </View>
-          )}
-          <View style={styles.fleks}>
-            <Text style={[styles.nama, { color: w.text }]} numberOfLines={1}>
-              {nama}
-            </Text>
-            {handle && (
-              <Text style={[styles.handle, { color: w.textSecondary }]} numberOfLines={1}>
-                {handle}
-              </Text>
-            )}
-            <View style={styles.peran}>
-              <Ionicons name="shield-checkmark-outline" size={14} color={w.accentText} />
-              <Text style={[styles.teksPeran, { color: w.accentText }]}>Pelapor warga</Text>
-            </View>
+      {/* .profile-head */}
+      <View style={styles.kepalaProfil}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Edit profil"
+          onPress={() => router.push('/profil-ubah')}
+          style={({ pressed }) => pressed && styles.ditekan}>
+          <Avatar nama={nama} foto={pengguna?.foto} ukuran={96} utama />
+          <View style={[styles.tombolAvatar, { backgroundColor: w.accent, borderColor: w.background }]}>
+            <Feather name="edit-2" size={13} color={w.onAccent} />
           </View>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push('/profil-ubah')}
-            style={({ pressed }) => [
-              styles.tombolEdit,
-              { borderColor: w.border, backgroundColor: pressed ? w.surfaceMuted : w.surface },
-            ]}>
-            <Text style={[styles.teksEdit, { color: w.text }]}>Edit</Text>
-          </Pressable>
+        </Pressable>
+        <View style={styles.barisNama}>
+          <Text style={[styles.nama, { color: w.text }]} numberOfLines={2}>
+            {nama}
+          </Text>
         </View>
-
-        <View style={[styles.angka, { borderColor: w.border }]}>
-          <Angka nilai={statistik?.laporan} label="Laporan" />
-          <Angka nilai={statistik?.tayang} label="Tayang" garis />
-          <Angka nilai={menunggu} label="Menunggu" garis />
-          <Angka nilai={statistik?.disukai} label="Disukai" garis />
-        </View>
-
-        <View style={[styles.kontribusi, { backgroundColor: w.inverse }]}>
-          <View style={styles.ikonKontribusi}>
-            <Ionicons name="shield-checkmark-outline" size={20} color={Media.limau} />
+        {/* Hanya bila ada dasarnya: minimal satu laporan akun ini lolos verifikasi petugas. */}
+        {tayang > 0 && (
+          <View style={[styles.lencana, { borderColor: w.borderStrong }]}>
+            <Text style={[styles.teksLencana, { color: w.text }]}>PELAPOR TERVERIFIKASI</Text>
           </View>
-          <View style={styles.fleks}>
-            <Text style={styles.labelKontribusi}>KONTRIBUSI</Text>
-            <Text style={[styles.judulKontribusi, { color: w.onInverse }]}>
-              {tayang > 0
-                ? // Belum tentu tampil di beranda: kurator bisa menyimpan kejadiannya sebagai draf.
-                  `${tayang} laporan Anda sudah diverifikasi petugas`
-                : 'Laporan Anda akan tayang setelah diperiksa petugas'}
-            </Text>
-            <Text style={styles.teksKontribusi}>Dihitung dari laporan yang lolos verifikasi petugas.</Text>
-          </View>
-        </View>
+        )}
+        {pengguna?.email && (
+          <Text style={[styles.surel, { color: w.textSecondary }]} numberOfLines={1}>
+            {pengguna.email}
+          </Text>
+        )}
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/profil-ubah')}
+          style={({ pressed }) => [styles.editProfil, { borderColor: w.text }, pressed && styles.ditekan]}>
+          <Text style={[styles.teksEditProfil, { color: w.text }]}>Edit profil</Text>
+        </Pressable>
       </View>
 
-      <View style={[styles.tabs, { borderBottomColor: w.border }]}>
-        {(['laporan', 'disukai'] as const).map((t) => {
-          const pilih = tab === t;
+      {/* Tiga angka di antara garis, dipisah garis tegak (seperti data laporan di detail). */}
+      <View style={[styles.angka, { borderColor: w.border }]}>
+        <Angka nilai={statistik?.laporan} label="Laporan" />
+        <Angka nilai={statistik?.tayang} label="Terverifikasi" garis />
+        <Angka nilai={statistik?.disukai} label="Disukai" garis />
+      </View>
+
+      {/* Chip pil kapital kecil; terpilih terisi. */}
+      <View accessibilityRole="tablist" style={[styles.tabs, { borderBottomColor: w.border }]}>
+        {TAB.map(({ kunci, label }) => {
+          const pilih = tab === kunci;
           return (
             <Pressable
-              key={t}
+              key={kunci}
               accessibilityRole="tab"
               accessibilityState={{ selected: pilih }}
-              onPress={() => setTab(t)}
-              style={[styles.tab, pilih && { borderBottomColor: w.accentText }]}>
-              <Ionicons
-                name={t === 'laporan' ? 'grid-outline' : 'heart-outline'}
-                size={18}
-                color={pilih ? w.text : w.textSecondary}
-              />
-              <Text style={[styles.teksTab, { color: pilih ? w.text : w.textSecondary }]}>
-                {t === 'laporan' ? 'Laporan' : 'Disukai'}
+              accessibilityLabel={label}
+              onPress={() => setTab(kunci)}
+              style={({ pressed }) => [
+                styles.tab,
+                pilih ? { backgroundColor: w.chipAktif, borderColor: w.chipAktif } : { borderColor: w.border },
+                pressed && styles.ditekan,
+              ]}>
+              <Text style={[styles.teksTab, { color: pilih ? w.onChipAktif : w.text }]} numberOfLines={1}>
+                {label.toUpperCase()}
               </Text>
             </Pressable>
           );
@@ -230,403 +246,405 @@ function ProfilMasuk({ kepalaHalaman }: { kepalaHalaman: ReactNode }) {
     </View>
   );
 
-  const kosong =
-    tab === 'laporan' ? (
+  const umpanBelumAda = umpan.berita.length === 0;
+  let kosong: ReactNode;
+  if (tab === 'laporan') {
+    kosong =
       laporan === null && !galat ? (
         <ActivityIndicator color={w.accentText} style={styles.pemuat} />
+      ) : galat ? (
+        <Kosong ikon="wifi-off" teks={galat}>
+          <Tombol judul="Coba lagi" ragam="teks" onPress={() => void segarkan()} />
+        </Kosong>
       ) : (
-        <Kosong
-          ikon="camera-outline"
-          teks={galat || 'Belum ada laporan. Tekan ➕ untuk memotret dan melaporkan kebakaran di sekitar Anda.'}
-        />
-      )
-    ) : (
-      <Kosong ikon="heart-outline" teks="Laporan yang Anda sukai di beranda muncul di sini." />
-    );
-
-  const segar = (
-    <RefreshControl refreshing={menyegarkan} onRefresh={() => void segarkan()} tintColor={w.accentText} />
-  );
+        <Kosong ikon="camera" teks="Laporanmu tampil di sini beserta status verifikasinya.">
+          <Tombol judul="Buat laporan" ikon="add" onPress={() => router.navigate('/lapor')} />
+        </Kosong>
+      );
+  } else if (umpanBelumAda && umpan.status === 'memuat') {
+    kosong = <ActivityIndicator color={w.accentText} style={styles.pemuat} />;
+  } else if (umpanBelumAda && umpan.status === 'galat') {
+    kosong = <Kosong ikon="wifi-off" teks="Umpan laporan belum termuat. Tarik ke bawah untuk mencoba lagi." />;
+  } else {
+    kosong =
+      tab === 'disukai' ? (
+        <Kosong ikon="heart" teks="Laporan yang kamu sukai di beranda tampil di sini." />
+      ) : (
+        <Kosong ikon="bookmark" teks="Laporan yang kamu simpan tampil di sini. Daftarnya hanya ada di HP ini." />
+      );
+  }
 
   return (
-    <View style={[styles.layar, { backgroundColor: w.background }]}>
-      {/* Latar status bar: grid yang digulir tidak boleh menimpa jam & baterai. */}
-      <View style={[styles.latarStatus, { height: insets.top, backgroundColor: w.background }]} />
-      {tab === 'laporan' ? (
-        <FlatList
-          key="laporan"
-          data={laporan ?? []}
-          keyExtractor={(l) => l.id}
-          numColumns={3}
-          ListHeaderComponent={kepala}
-          ListEmptyComponent={kosong}
-          renderItem={({ item }) => <UbinLaporan laporan={item} onBuka={bukaLaporan} />}
-          columnWrapperStyle={styles.barisGrid}
-          refreshControl={segar}
-        />
-      ) : (
-        <FlatList
-          key="disukai"
-          data={daftarDisukai}
-          keyExtractor={(b) => String(b.id)}
-          numColumns={3}
-          ListHeaderComponent={kepala}
-          ListEmptyComponent={kosong}
-          renderItem={({ item }) => (
-            // Angka suka terbaru dari HP ini; umpan di-cache beberapa menit.
-            <UbinDisukai berita={item} jumlahSuka={jumlahSuka.get(item.id) ?? item.jumlahSuka} />
-          )}
-          columnWrapperStyle={styles.barisGrid}
-          refreshControl={segar}
-        />
-      )}
-    </View>
+    <FlatList
+      data={ubin}
+      numColumns={3}
+      keyExtractor={(u) => (u.jenis === 'saya' ? `saya-${u.laporan.id}` : `berita-${u.berita.id}`)}
+      ListHeaderComponent={kepala}
+      ListEmptyComponent={kosong}
+      columnWrapperStyle={styles.barisUbin}
+      renderItem={({ item }) => {
+        if (item.jenis === 'berita') return <UbinBerita berita={item.berita} suka={sukaDari(item.berita)} lebar={lebarUbin} />;
+        const b = item.laporan.beritaId !== null ? perId.get(item.laporan.beritaId) : undefined;
+        return <UbinLaporanSaya laporan={item.laporan} suka={b ? sukaDari(b) : 0} lebar={lebarUbin} />;
+      }}
+      // Bilah bawah melayang di atas kisi: baris terakhir tetap bisa digulir keluar dari bawahnya.
+      contentContainerStyle={{ paddingBottom: ruangBilahBawah(insets.bottom) }}
+      refreshControl={
+        <RefreshControl refreshing={menyegarkan} onRefresh={() => void segarkan()} tintColor={w.text} colors={[w.accent]} />
+      }
+    />
   );
 }
 
 function Angka({ nilai, label, garis = false }: { nilai: number | undefined; label: string; garis?: boolean }) {
   const w = useTheme();
   return (
-    <View style={[styles.sel, garis && { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: w.border }]}>
+    <View style={[styles.sel, garis && [styles.selBergaris, { borderLeftColor: w.border }]]}>
+      <Text style={[styles.labelAngka, { color: w.textSecondary }]} numberOfLines={1}>
+        {label.toUpperCase()}
+      </Text>
       <Text style={[styles.nilai, { color: w.text }]}>{nilai === undefined ? '–' : hitunganTeks(nilai)}</Text>
-      <Text style={[styles.labelAngka, { color: w.textSecondary }]}>{label}</Text>
     </View>
   );
 }
 
-function UbinLaporan({
-  laporan: l,
-  onBuka,
+/** Ubin laporan milik akun ini: status verifikasinya jelas di pil kiri bawah. */
+function UbinLaporanSaya({ laporan: l, suka, lebar }: { laporan: LaporanSaya; suka: number; lebar: number }) {
+  const saat = Date.parse(l.dibuat);
+  const label = [l.judul, STATUS[l.status], !Number.isNaN(saat) && waktuLalu(saat), suka > 0 && `${suka} dukungan`]
+    .filter(Boolean)
+    .join(', ');
+  return (
+    <UbinKisi
+      sampul={l.sampul}
+      banyak={l.jumlahBerkas > 1}
+      judul={l.judul}
+      label={label}
+      lebar={lebar}
+      onPress={() => {
+        if (l.beritaId !== null) return bukaLaporan(l.beritaId);
+        Alert.alert(
+          l.judul,
+          l.status === 'ditolak'
+            ? 'Laporan ini tidak lolos verifikasi petugas.'
+            : l.status === 'tayang'
+              ? // Disetujui, tetapi kejadiannya masih draf atau sudah diturunkan dari situs.
+                'Laporan ini sudah diverifikasi petugas, tetapi belum atau tidak ditampilkan di beranda.'
+              : 'Laporan ini sedang diperiksa petugas dan belum tampil di beranda.',
+        );
+      }}>
+      <View style={styles.pilStatus}>
+        <View style={[styles.titikStatus, { backgroundColor: WARNA_STATUS[l.status] }]} />
+        <Text style={styles.teksUbin} numberOfLines={1}>
+          {STATUS[l.status].toUpperCase()}
+        </Text>
+      </View>
+    </UbinKisi>
+  );
+}
+
+/** Ubin laporan umpan (disukai / tersimpan): ▶ bila ada video, ♥ jumlah suka. */
+function UbinBerita({ berita: b, suka, lebar }: { berita: Berita; suka: number; lebar: number }) {
+  const sampul = sampulDari(b);
+  const video = b.media.some((m) => m.jenis === 'video');
+  return (
+    <UbinKisi
+      sampul={sampul ? urlGambar(sampul, 384) : null}
+      banyak={b.media.length > 1}
+      judul={b.judul}
+      label={[b.judul, video && 'video', suka > 0 && `${suka} dukungan`].filter(Boolean).join(', ')}
+      lebar={lebar}
+      onPress={() => bukaLaporan(b.id)}>
+      {(video || suka > 0) && (
+        <View style={styles.pilStatus}>
+          {video && <Ionicons name="play" size={10} color={Media.teks} />}
+          {suka > 0 && (
+            <>
+              <Ionicons name="heart" size={10} color={Media.aksen} />
+              <Text style={styles.teksUbin}>{hitunganTeks(suka)}</Text>
+            </>
+          )}
+        </View>
+      )}
+    </UbinKisi>
+  );
+}
+
+/**
+ * Ubin kisi: sampul rasio 0,75 bersudut 14 dengan pil tinta kecil di kiri bawah (status, ▶, ♥).
+ * Tanpa sampul: judulnya ditulis di tengah ubin supaya laporan tetap bisa dikenali.
+ */
+function UbinKisi({
+  sampul,
+  banyak,
+  judul,
+  label,
+  lebar,
+  onPress,
+  children,
 }: {
-  laporan: LaporanSaya;
-  onBuka: (l: LaporanSaya & { beritaId: number }) => void;
+  sampul: string | null;
+  /** Lebih dari satu foto/video: ikon kecil di pojok kanan atas. */
+  banyak: boolean;
+  judul: string;
+  label: string;
+  lebar: number;
+  onPress: () => void;
+  children: ReactNode;
 }) {
   const w = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${l.judul}, ${l.status}`}
-      onPress={() => {
-        if (l.beritaId !== null) onBuka({ ...l, beritaId: l.beritaId });
-        else
-          Alert.alert(
-            l.judul,
-            l.status === 'ditolak'
-              ? 'Laporan ini tidak lolos verifikasi petugas.'
-              : l.status === 'tayang'
-                ? // Disetujui, tetapi kejadiannya masih draf atau sudah diturunkan dari situs.
-                  'Laporan ini sudah diverifikasi petugas, tetapi belum atau tidak ditampilkan di beranda.'
-                : 'Laporan ini sedang diperiksa petugas dan belum tampil di beranda.',
-          );
-      }}
-      style={[styles.ubin, { backgroundColor: w.border }]}>
-      {l.sampul ? (
-        <Image source={{ uri: l.sampul }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={({ pressed }) => [styles.ubin, { width: lebar, backgroundColor: w.surfaceMuted }, pressed && styles.ditekan]}>
+      {sampul ? (
+        <Image source={{ uri: sampul }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} recyclingKey={sampul} />
       ) : (
-        <View style={[StyleSheet.absoluteFill, styles.tengah]}>
-          <Ionicons name="videocam" size={24} color={w.textSecondary} />
+        <View style={[StyleSheet.absoluteFill, styles.tanpaSampul]}>
+          <Text style={[styles.judulTanpaSampul, { color: w.textSecondary }]} numberOfLines={4}>
+            {judul}
+          </Text>
         </View>
       )}
-      <View style={styles.ikonUbin}>
-        <Ionicons name={l.jumlahBerkas > 1 ? 'copy-outline' : l.sampul ? 'image-outline' : 'play'} size={15} color="#fff" />
-      </View>
-      {l.status === 'tayang' ? (
-        <View style={styles.centang}>
-          <Ionicons name="checkmark" size={10} color={Media.onLimau} />
-        </View>
-      ) : (
-        <View style={[styles.lencana, { backgroundColor: l.status === 'ditolak' ? w.danger : w.warning }]}>
-          <Text style={styles.teksLencana}>{l.status === 'ditolak' ? 'Ditolak' : 'Menunggu'}</Text>
+      {banyak && (
+        <View pointerEvents="none" style={styles.banyak}>
+          <Feather name="copy" size={11} color={Media.teks} />
         </View>
       )}
-      <Text style={styles.tanggalUbin}>{tanggalPendek(l.dibuat)}</Text>
-    </Pressable>
-  );
-}
-
-function UbinDisukai({ berita: b, jumlahSuka }: { berita: Berita; jumlahSuka: number }) {
-  const w = useTheme();
-  const awal = b.media[0];
-  const sampul = awal?.jenis === 'video' ? awal.poster : awal?.url;
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={b.judul}
-      onPress={() => bukaDiBeranda(b.id)}
-      style={[styles.ubin, { backgroundColor: w.border }]}>
-      {sampul && <Image source={{ uri: urlGambar(sampul, 384) }} style={StyleSheet.absoluteFill} contentFit="cover" />}
-      <View style={styles.ikonUbin}>
-        <Ionicons name={awal?.jenis === 'video' ? 'play' : 'image-outline'} size={15} color="#fff" />
-      </View>
-      <View style={styles.sukaUbin}>
-        <Ionicons name="heart" size={12} color="#fff" />
-        <Text style={styles.tanggalUbinTeks}>{hitunganTeks(jumlahSuka)}</Text>
+      <View pointerEvents="none" style={styles.labelUbin}>
+        {children}
       </View>
     </Pressable>
   );
 }
 
-function Kosong({ ikon, teks }: { ikon: 'camera-outline' | 'heart-outline'; teks: string }) {
+function Kosong({
+  ikon,
+  teks,
+  children,
+}: {
+  ikon: ComponentProps<typeof Feather>['name'];
+  teks: string;
+  children?: ReactNode;
+}) {
   const w = useTheme();
   return (
     <View style={styles.kosong}>
-      <Ionicons name={ikon} size={36} color={w.textSecondary} />
+      <View style={[styles.ikonKosong, { backgroundColor: w.surfaceMuted }]}>
+        <Feather name={ikon} size={24} color={w.textSecondary} />
+      </View>
       <Text style={[styles.teksKosong, { color: w.textSecondary }]}>{teks}</Text>
+      {children}
     </View>
   );
 }
-
-const bayangTeks = {
-  textShadowColor: 'rgba(0,0,0,0.6)',
-  textShadowOffset: { width: 0, height: 1 },
-  textShadowRadius: 3,
-} as const;
 
 const styles = StyleSheet.create({
   layar: {
     flex: 1,
   },
-  latarStatus: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 1,
+  ditekan: {
+    opacity: 0.75,
   },
-  fleks: {
-    flex: 1,
-  },
-  tengah: {
-    alignItems: 'center',
-    justifyContent: 'center',
+  pemuat: {
+    marginTop: 40,
   },
   isiMasuk: {
     flexGrow: 1,
     justifyContent: 'center',
-    paddingVertical: Spacing.three,
+    paddingHorizontal: TEPI,
+    paddingTop: 18,
   },
-  kepalaHalaman: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    paddingHorizontal: 17,
-    marginBottom: 17,
+  panelMasuk: {
+    paddingVertical: 22,
+    borderRadius: 28,
   },
-  eyebrow: {
-    fontFamily: Fonts.judulTebal,
-    fontSize: 10.5,
-    letterSpacing: 1.5,
+  kepalaProfil: {
+    alignItems: 'center',
+    paddingTop: 5,
+    paddingHorizontal: 28,
+    paddingBottom: 20,
   },
-  h1: {
-    marginTop: 3,
-    fontFamily: Fonts.judulTebal,
-    fontSize: 30,
-    letterSpacing: -1.1,
-  },
-  tombolKotak: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+  // Tombol sunting bulat sinyal berbingkai warna latar.
+  tombolAvatar: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 3,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  isiKepala: {
-    paddingHorizontal: 17,
-  },
-  kartuProfil: {
+  barisNama: {
+    marginTop: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-  },
-  avatar: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    borderWidth: 3,
-    borderColor: Media.limau,
-  },
-  avatarInisial: {
-    backgroundColor: '#344138',
-  },
-  inisial: {
-    color: '#fff',
-    fontFamily: Fonts.judulTebal,
-    fontSize: 22,
   },
   nama: {
+    flexShrink: 1,
     fontFamily: Fonts.judulTebal,
-    fontSize: 19,
-  },
-  handle: {
-    marginTop: 2,
-    fontFamily: Fonts.regular,
-    fontSize: 12.5,
-  },
-  peran: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 6,
-  },
-  teksPeran: {
-    fontFamily: Fonts.bold,
-    fontSize: 12,
-  },
-  tombolEdit: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderRadius: 8,
-  },
-  teksEdit: {
-    fontFamily: Fonts.bold,
-    fontSize: 12.5,
-  },
-  angka: {
-    flexDirection: 'row',
-    marginVertical: 20,
-    paddingVertical: 15,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  sel: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  nilai: {
-    fontFamily: Fonts.judulTebal,
-    fontSize: 17,
-    fontVariant: ['tabular-nums'],
-  },
-  labelAngka: {
-    marginTop: 3,
-    fontFamily: Fonts.regular,
-    fontSize: 11.5,
-  },
-  kontribusi: {
-    flexDirection: 'row',
-    gap: 11,
-    padding: 14,
-    borderRadius: 13,
-  },
-  ikonKontribusi: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(184,243,74,0.1)',
-  },
-  labelKontribusi: {
-    color: '#aabca2',
-    fontFamily: Fonts.judulTebal,
-    fontSize: 9.5,
-    letterSpacing: 1,
-  },
-  judulKontribusi: {
-    marginTop: 3,
-    fontFamily: Fonts.judul,
-    fontSize: 14,
-    lineHeight: 19,
-  },
-  teksKontribusi: {
-    marginTop: 4,
-    color: '#96a398',
-    fontFamily: Fonts.regular,
-    fontSize: 11.5,
-  },
-  tabs: {
-    flexDirection: 'row',
-    marginTop: 18,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  tab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 11,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  teksTab: {
-    fontFamily: Fonts.semibold,
-    fontSize: 13,
-  },
-  barisGrid: {
-    gap: 2,
-  },
-  ubin: {
-    flex: 1 / 3,
-    aspectRatio: 3 / 4,
-    marginTop: 2,
-    overflow: 'hidden',
-  },
-  ikonUbin: {
-    position: 'absolute',
-    top: 7,
-    right: 7,
-  },
-  centang: {
-    position: 'absolute',
-    left: 7,
-    bottom: 7,
-    width: 17,
-    height: 17,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Media.limau,
+    fontSize: 24,
+    letterSpacing: -0.4,
+    lineHeight: 29,
+    textAlign: 'center',
   },
   lencana: {
-    position: 'absolute',
-    left: 6,
-    bottom: 6,
+    marginTop: 8,
     paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical: 3,
+    borderWidth: 1,
     borderRadius: 4,
   },
   teksLencana: {
-    color: '#fff',
+    fontFamily: Fonts.monoTebal,
+    fontSize: 9.5,
+    letterSpacing: 0.6,
+  },
+  surel: {
+    marginTop: 8,
+    fontFamily: Fonts.regular,
+    fontSize: 13,
+  },
+  // Seperti tombol "Follow" di desain: pil bergaris sewarna teks.
+  editProfil: {
+    marginTop: 14,
+    height: 38,
+    paddingHorizontal: 18,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderRadius: 19,
+  },
+  teksEditProfil: {
     fontFamily: Fonts.bold,
-    fontSize: 10,
+    fontSize: 13,
   },
-  tanggalUbin: {
-    position: 'absolute',
-    right: 7,
-    bottom: 6,
-    color: '#fff',
-    fontFamily: Fonts.semibold,
+  angka: {
+    marginHorizontal: 20,
+    marginBottom: 4,
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+  },
+  sel: {
+    flex: 1,
+    gap: 4,
+    paddingVertical: 10,
+  },
+  selBergaris: {
+    paddingLeft: 12,
+    borderLeftWidth: 1,
+  },
+  nilai: {
+    fontFamily: Fonts.judulTebal,
+    fontSize: 21,
+    lineHeight: 26,
+    fontVariant: ['tabular-nums'],
+  },
+  labelAngka: {
+    fontFamily: Fonts.mono,
+    fontSize: 9.5,
+    letterSpacing: 0.8,
+  },
+  tabs: {
+    paddingTop: 14,
+    paddingBottom: 12,
+    paddingHorizontal: TEPI,
+    marginBottom: 12,
+    flexDirection: 'row',
+    gap: 6,
+    borderBottomWidth: 1,
+  },
+  tab: {
+    height: 36,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderRadius: 18,
+  },
+  teksTab: {
+    fontFamily: Fonts.monoTebal,
     fontSize: 11,
-    ...bayangTeks,
+    letterSpacing: 0.7,
   },
-  sukaUbin: {
+  barisUbin: {
+    gap: JARAK_UBIN,
+    marginBottom: JARAK_UBIN,
+    paddingHorizontal: TEPI,
+  },
+  ubin: {
+    aspectRatio: 0.75,
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  tanpaSampul: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 10,
+  },
+  judulTanpaSampul: {
+    fontFamily: Fonts.judul,
+    fontSize: 13,
+    lineHeight: 16,
+    textAlign: 'center',
+  },
+  banyak: {
     position: 'absolute',
-    left: 7,
+    top: 6,
+    right: 6,
+    padding: 4,
+    borderRadius: 6,
+    backgroundColor: Media.pil,
+  },
+  labelUbin: {
+    position: 'absolute',
+    left: 6,
+    right: 6,
     bottom: 6,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
   },
-  tanggalUbinTeks: {
-    color: '#fff',
-    fontFamily: Fonts.semibold,
-    fontSize: 11.5,
-    ...bayangTeks,
+  pilStatus: {
+    flexShrink: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: Media.pil,
   },
-  pemuat: {
-    marginTop: Spacing.five,
+  titikStatus: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  teksUbin: {
+    flexShrink: 1,
+    color: Media.teks,
+    fontFamily: Fonts.monoTebal,
+    fontSize: 9.5,
+    letterSpacing: 0.4,
   },
   kosong: {
     alignItems: 'center',
-    gap: Spacing.three,
-    paddingVertical: Spacing.six,
-    paddingHorizontal: Spacing.five,
+    gap: 10,
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+  },
+  ikonKosong: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   teksKosong: {
     fontFamily: Fonts.regular,
-    fontSize: 14,
+    fontSize: 13.5,
     lineHeight: 20,
     textAlign: 'center',
   },

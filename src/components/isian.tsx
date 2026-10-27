@@ -1,6 +1,7 @@
-import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
+import { useRef } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 
-import { Fonts, Radius, Spacing } from '@/constants/theme';
+import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 type Props = TextInputProps & {
@@ -9,76 +10,104 @@ type Props = TextInputProps & {
   galat?: boolean;
 };
 
-/** Kotak isian berlabel. Penghitung karakter muncul bila `maxLength` diisi. */
+/**
+ * Kotak isian berlabel: panel bergaris tipis bersudut 16 dengan label kapital kecil di dalam,
+ * teks di bawahnya, petunjuk kecil di dasar panel. Mengetuk di mana saja pada panel memfokuskan
+ * isian. Penghitung karakter muncul hanya saat mendekati batas: di kanan label untuk satu baris,
+ * di kanan bawah untuk isian banyak baris (yang bisa memanjang melewati layar).
+ */
 export function Isian({ label, petunjuk, galat = false, multiline, maxLength, value, style, ...lain }: Props) {
   const w = useTheme();
+  const isian = useRef<TextInput>(null);
   const panjang = value?.length ?? 0;
-  const dekatBatas = maxLength !== undefined && panjang > maxLength * 0.8;
+  const tampilHitung = maxLength !== undefined && panjang > maxLength * 0.8;
+  const hitung = tampilHitung && (
+    <Text style={[styles.hitung, { color: w.textSecondary }]}>
+      {panjang}/{maxLength}
+    </Text>
+  );
 
   return (
-    <View style={styles.wadah}>
-      <View style={styles.baris}>
+    <Pressable
+      accessible={false}
+      onPress={() => isian.current?.focus()}
+      style={[styles.panel, { backgroundColor: w.surface, borderColor: galat ? w.danger : w.border }]}>
+      <View style={styles.barisLabel}>
         <Text style={[styles.label, { color: w.textSecondary }]}>{label}</Text>
-        {dekatBatas && (
-          <Text style={[styles.hitung, { color: w.textSecondary }]}>
-            {panjang}/{maxLength}
-          </Text>
-        )}
+        {!multiline && hitung}
       </View>
       <TextInput
+        ref={isian}
         value={value}
         maxLength={maxLength}
         multiline={multiline}
+        accessibilityLabel={label}
         placeholderTextColor={w.textSecondary}
         textAlignVertical={multiline ? 'top' : 'center'}
-        style={[
-          styles.input,
-          multiline && styles.multiline,
-          { color: w.text, backgroundColor: w.surface, borderColor: galat ? w.danger : w.border },
-          style,
-        ]}
+        style={[styles.input, multiline && styles.multiline, { color: w.text }, style]}
         {...lain}
       />
-      {petunjuk && <Text style={[styles.petunjuk, { color: w.textSecondary }]}>{petunjuk}</Text>}
-    </View>
+      {(petunjuk || (multiline && hitung)) && (
+        <View style={styles.barisBawah}>
+          <Text style={[styles.petunjuk, { color: w.textSecondary }]}>{petunjuk}</Text>
+          {multiline && hitung}
+        </View>
+      )}
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  wadah: {
-    gap: Spacing.one + 2,
+  panel: {
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderRadius: 16,
   },
-  baris: {
+  barisLabel: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 7,
   },
-  // Label kecil tebal abu-abu di atas kotak, seperti "What's happening?" di desain.
   label: {
-    fontFamily: Fonts.bold,
-    fontSize: 12.5,
-  },
-  hitung: {
-    fontFamily: Fonts.medium,
-    fontSize: 12,
-    fontVariant: ['tabular-nums'],
+    flexShrink: 1,
+    fontFamily: Fonts.monoTebal,
+    fontSize: 10.5,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
   },
   input: {
-    minHeight: 48,
-    borderWidth: 1,
-    borderRadius: Radius.medium,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontFamily: Fonts.regular,
+    minHeight: 24,
+    paddingVertical: 2,
+    paddingHorizontal: 0,
+    fontFamily: Fonts.medium,
     fontSize: 15,
+    includeFontPadding: false,
   },
   multiline: {
-    minHeight: 104,
-    lineHeight: 22,
+    minHeight: 96,
+    fontFamily: Fonts.regular,
+    fontSize: 14.5,
+    lineHeight: 21,
+  },
+  barisBawah: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginTop: 8,
+  },
+  hitung: {
+    fontFamily: Fonts.mono,
+    fontSize: 10.5,
   },
   petunjuk: {
+    flex: 1,
     fontFamily: Fonts.regular,
-    fontSize: 12.5,
-    lineHeight: 17,
+    fontSize: 11.5,
+    lineHeight: 16,
+    opacity: 0.8,
   },
 });

@@ -16,7 +16,6 @@ import {
   ActivityIndicator,
   Keyboard,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -30,13 +29,16 @@ import {
   DaftarKomentar,
   KolomKomentar,
   LapisanHati,
+  LencanaLive,
   menuKomentarLive,
   PanelHadiah,
+  PilLive,
   SorotanHadiah,
+  TombolSamping,
   useInteraksiLive,
 } from '@/components/live/interaksi-live';
 import { Tombol } from '@/components/tombol';
-import { Fonts, Media, Radius, Spacing } from '@/constants/theme';
+import { Fonts, gradasi, Media, SINYAL, Spacing, TINTA, TULANG } from '@/constants/theme';
 import { useKini } from '@/hooks/use-kini';
 import { tokenSesi, useAkun } from '@/lib/akun';
 import { durasiTeks } from '@/lib/batas-laporan';
@@ -61,9 +63,10 @@ type Tahap =
 const TUNGGU_PELAPOR_MS = 5000;
 
 /**
- * Warga menonton siaran publik warga lain, seperti menonton LIVE di TikTok:
- * video penuh, komentar, ketuk = hati, dan laci hadiah. Dimuat malas oleh
- * app/tonton/[ruang].tsx hanya di development build.
+ * Warga menonton siaran publik warga lain (artboard "Live broadcast"): video penuh, lencana
+ * LIVE · durasi · penonton · tutup di atas, pembawa siaran di bawahnya, komentar di kiri bawah
+ * dengan tombol bulat hati / hadiah / laporkan di sampingnya, lalu kolom komentar. Ketuk video
+ * = hati. Dimuat malas oleh app/tonton/[ruang].tsx hanya di development build.
  */
 export default function TontonLive({ ruang, judul, nama, mulai }: Props) {
   const insets = useSafeAreaInsets();
@@ -139,12 +142,12 @@ export default function TontonLive({ ruang, judul, nama, mulai }: Props) {
       {tahap.jenis !== 'selesai' ? (
         // Termasuk tiket lama yang menunggu diganti setelah warga masuk/keluar.
         <>
-          <ActivityIndicator color="#fff" />
+          <ActivityIndicator color={TULANG} />
           <Text style={styles.teksRedup}>Membuka siaran {nama}…</Text>
         </>
       ) : (
         <>
-          <Ionicons name={tahap.ulang ? 'cloud-offline-outline' : 'radio-outline'} size={56} color="rgba(255,255,255,0.5)" />
+          <Ionicons name={tahap.ulang ? 'cloud-offline-outline' : 'radio-outline'} size={56} color="rgba(237,232,223,0.5)" />
           <Text style={styles.judulBesar}>{tahap.pesan}</Text>
           <Text style={styles.teksRedup} numberOfLines={2}>
             {judul}
@@ -207,14 +210,15 @@ function RuangTonton({
   const penonton = peserta.length - (pelapor ? 1 : 0) + 1;
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.layar}>
+    // padding di kedua platform: Android edge-to-edge tidak lagi mengecilkan jendela saat keyboard muncul.
+    <KeyboardAvoidingView behavior="padding" style={styles.layar}>
       {kamera ? (
         <View pointerEvents="none" style={StyleSheet.absoluteFill}>
           <VideoTrack trackRef={kamera} style={StyleSheet.absoluteFill} objectFit="cover" />
         </View>
       ) : (
         <View style={[StyleSheet.absoluteFill, styles.tengah]}>
-          <ActivityIndicator color="#fff" />
+          <ActivityIndicator color={TULANG} />
           <Text style={styles.teksRedup}>{tersambung ? 'Menunggu video dari pelapor…' : 'Menyambungkan…'}</Text>
         </View>
       )}
@@ -231,25 +235,50 @@ function RuangTonton({
 
       <View style={[styles.bawah, { paddingBottom: insets.bottom + Spacing.three }]}>
         <DaftarKiriman kiriman={interaksi.kiriman} onSelesai={interaksi.hapusKiriman} />
-        <DaftarKomentar komentar={interaksi.komentar} onTekanLama={(k) => menuKomentarLive(k, ruang)} />
+        <View style={styles.barisKomentar}>
+          <View style={styles.fleks}>
+            <DaftarKomentar komentar={interaksi.komentar} onTekanLama={(k) => menuKomentarLive(k, ruang)} />
+          </View>
+          <View style={styles.samping}>
+            {!tamu && (
+              <>
+                <TombolSamping
+                  ikon="heart"
+                  warna={SINYAL}
+                  label="Kirim hati"
+                  angka={interaksi.jumlahSuka}
+                  onPress={() => interaksi.ketuk(width - 44, height * 0.6)}
+                />
+                <TombolSamping
+                  ikon="gift-outline"
+                  label="Kirim hadiah"
+                  angka={interaksi.jumlahHadiah}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setPanelHadiah(true);
+                  }}
+                />
+              </>
+            )}
+            <TombolSamping
+              ikon="flag-outline"
+              label="Laporkan siaran"
+              onPress={() =>
+                router.push({ pathname: '/laporkan', params: { jenis: 'siaran', id: ruang, ringkas: `${namaTuan}: ${judul}` } })
+              }
+            />
+          </View>
+        </View>
         {tamu ? (
           <Pressable
             accessibilityRole="button"
             onPress={() => router.push({ pathname: '/masuk', params: { alasan: 'untuk berkomentar dan memberi hadiah' } })}
-            style={styles.ajakMasuk}>
-            <Ionicons name="chatbubble-ellipses-outline" size={18} color={Media.limau} />
+            style={({ pressed }) => [styles.ajakMasuk, pressed && styles.ditekan]}>
+            <Ionicons name="chatbubble-ellipses-outline" size={18} color={SINYAL} />
             <Text style={styles.ajakMasukTeks}>Masuk untuk berkomentar, kirim hati, dan hadiah</Text>
           </Pressable>
         ) : (
-          <KolomKomentar
-            placeholder="Tulis komentar…"
-            onKirim={interaksi.kirimKomentar}
-            onHadiah={() => {
-              Keyboard.dismiss();
-              setPanelHadiah(true);
-            }}
-            onHati={() => interaksi.ketuk(width - 44, height * 0.7)}
-          />
+          <KolomKomentar placeholder="Tanya atau kabarkan keadaan…" onKirim={interaksi.kirimKomentar} />
         )}
       </View>
 
@@ -258,74 +287,39 @@ function RuangTonton({
 
       {status === ConnectionState.Reconnecting && (
         <View style={styles.selubung}>
-          <ActivityIndicator color="#fff" />
+          <ActivityIndicator color={TULANG} />
           <Text style={styles.selubungTeks}>Sinyal terputus — menyambung ulang…</Text>
         </View>
       )}
 
       <View style={[styles.atas, { paddingTop: insets.top + Spacing.two }]} pointerEvents="box-none">
         <View style={styles.barisAtas}>
-          <View style={styles.tuanRumah}>
-            <View style={styles.cincinAvatar}>
-              <View style={styles.avatar}>
-                <Text style={styles.inisial}>{(namaTuan.trim()[0] ?? 'W').toUpperCase()}</Text>
-              </View>
-            </View>
-            <View style={styles.fleks}>
-              <Text style={styles.namaTuan} numberOfLines={1}>
-                {namaTuan}
-              </Text>
-              <Text style={styles.judulKecil} numberOfLines={1}>
-                {judul}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.pil}>
-            <Ionicons name="eye-outline" size={12} color="#fff" />
-            <Text style={styles.pilTeks}>{penonton}</Text>
-          </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Laporkan siaran"
-            onPress={() =>
-              router.push({ pathname: '/laporkan', params: { jenis: 'siaran', id: ruang, ringkas: `${namaTuan}: ${judul}` } })
-            }
-            hitSlop={8}
-            style={styles.tutup}>
-            <Ionicons name="flag-outline" size={20} color="#fff" />
-          </Pressable>
+          <LencanaLive tersambung={tersambung} />
+          {mulai !== null && <PilLive teks={durasiTeks((kini - mulai) / 1000)} besar />}
+          <View style={styles.fleks} />
+          <PilLive ikon="eye-outline" teks={String(penonton)} />
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Tutup siaran"
             onPress={() => router.back()}
-            hitSlop={10}
-            style={styles.tutup}>
-            <Ionicons name="close" size={24} color="#fff" />
+            hitSlop={6}
+            style={({ pressed }) => [styles.tutup, pressed && styles.ditekan]}>
+            <Ionicons name="close" size={20} color={TULANG} />
           </Pressable>
         </View>
 
-        <View style={styles.barisStatus}>
-          <View style={[styles.lencanaLive, !tersambung && styles.lencanaMenunggu]}>
-            {tersambung && <View style={styles.titikLive} />}
-            <Text style={styles.lencanaLiveTeks}>{tersambung ? 'LIVE' : 'MENGHUBUNGKAN'}</Text>
+        <View style={styles.tuanRumah}>
+          <View style={styles.avatar}>
+            <Text style={styles.inisial}>{(namaTuan.trim()[0] ?? 'W').toUpperCase()}</Text>
           </View>
-          {mulai !== null && (
-            <View style={styles.pil}>
-              <Text style={styles.pilTeks}>{durasiTeks((kini - mulai) / 1000)}</Text>
-            </View>
-          )}
-          {interaksi.jumlahSuka > 0 && (
-            <View style={styles.pil}>
-              <Ionicons name="heart" size={12} color={Media.limau} />
-              <Text style={styles.pilTeks}>{interaksi.jumlahSuka}</Text>
-            </View>
-          )}
-          {interaksi.jumlahHadiah > 0 && (
-            <View style={styles.pil}>
-              <Ionicons name="gift" size={12} color={Media.limau} />
-              <Text style={styles.pilTeks}>{interaksi.jumlahHadiah}</Text>
-            </View>
-          )}
+          <View style={styles.fleks}>
+            <Text style={styles.namaTuan} numberOfLines={1}>
+              {namaTuan}
+            </Text>
+            <Text style={styles.judulKecil} numberOfLines={1}>
+              {judul.toUpperCase()}
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -339,7 +333,7 @@ function RuangTonton({
 const styles = StyleSheet.create({
   layar: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: Media.latar,
   },
   tengah: {
     alignItems: 'center',
@@ -349,6 +343,11 @@ const styles = StyleSheet.create({
   },
   fleks: {
     flex: 1,
+    minWidth: 0,
+  },
+  ditekan: {
+    opacity: 0.75,
+    transform: [{ scale: 0.95 }],
   },
   lebar: {
     alignSelf: 'stretch',
@@ -358,13 +357,15 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
   },
   judulBesar: {
-    color: '#fff',
-    fontSize: 21,
+    color: TULANG,
     fontFamily: Fonts.judulTebal,
+    fontSize: 21,
+    lineHeight: 26,
     textAlign: 'center',
   },
   teksRedup: {
-    color: 'rgba(255,255,255,0.7)',
+    color: Media.redup,
+    fontFamily: Fonts.regular,
     fontSize: 14,
     lineHeight: 20,
     textAlign: 'center',
@@ -372,28 +373,39 @@ const styles = StyleSheet.create({
   areaKetuk: {
     flex: 1,
   },
-  // Dalam alur biasa (bukan absolute) supaya ikut naik saat papan ketik muncul.
+  // Dalam alur biasa (bukan absolute) supaya ikut naik saat papan ketik muncul. Selubung tinta
+  // di bawah, seperti desain, supaya komentar terbaca di atas video apa pun.
   bawah: {
-    paddingTop: Spacing.three,
-    paddingHorizontal: Spacing.three,
-    gap: Spacing.three,
-    experimental_backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,0.55))',
+    paddingTop: 40,
+    paddingLeft: 16,
+    paddingRight: 12,
+    gap: 14,
+    ...gradasi('linear-gradient(to bottom, rgba(12,14,13,0), rgba(12,14,13,0.8) 35%)'),
+  },
+  barisKomentar: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 12,
+  },
+  samping: {
+    alignItems: 'center',
+    gap: 10,
   },
   // Sebentuk dengan kolom komentar, supaya tamu tahu di sini tempatnya.
   ajakMasuk: {
+    minHeight: 52,
+    paddingHorizontal: 18,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
-    minHeight: 44,
-    paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.27)',
-    borderRadius: Radius.pill,
-    backgroundColor: 'rgba(13,17,14,0.42)',
+    borderColor: Media.garis,
+    borderRadius: 26,
+    backgroundColor: Media.kaca,
   },
   ajakMasukTeks: {
     flex: 1,
-    color: '#fff',
+    color: TULANG,
     fontFamily: Fonts.semibold,
     fontSize: 14,
   },
@@ -402,116 +414,65 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: 12,
+    paddingLeft: 16,
+    paddingRight: 12,
     paddingBottom: Spacing.four,
-    gap: 8,
-    experimental_backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.55), rgba(0,0,0,0))',
+    gap: 14,
+    ...gradasi('linear-gradient(to bottom, rgba(12,14,13,0.55), rgba(12,14,13,0))'),
   },
   barisAtas: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
+    gap: 8,
   },
-  // Pil tuan rumah ala TikTok: avatar bercincin merah, nama, judul.
+  tutup: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Media.kaca,
+  },
   tuanRumah: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingVertical: 3,
-    paddingLeft: 3,
-    paddingRight: 12,
-    borderRadius: Radius.pill,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    gap: 10,
   },
-  cincinAvatar: {
-    padding: 2,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: Media.merah,
-  },
+  // Pembawa siaran: lingkaran tulang berinisial tinta.
   avatar: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#304036',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: TULANG,
     alignItems: 'center',
     justifyContent: 'center',
   },
   inisial: {
-    color: '#fff',
-    fontFamily: Fonts.judulTebal,
+    color: TINTA,
+    fontFamily: Fonts.tebal,
     fontSize: 13,
   },
   namaTuan: {
-    color: '#fff',
+    color: TULANG,
     fontFamily: Fonts.bold,
     fontSize: 14,
   },
   judulKecil: {
-    color: 'rgba(255,255,255,0.75)',
-    fontFamily: Fonts.regular,
-    fontSize: 11.5,
-  },
-  tutup: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  barisStatus: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 5,
-  },
-  lencanaLive: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 7,
-    paddingVertical: 4,
-    borderRadius: 4,
-    backgroundColor: Media.merah,
-  },
-  lencanaMenunggu: {
-    backgroundColor: 'rgba(0,0,0,0.6)',
-  },
-  lencanaLiveTeks: {
-    color: '#fff',
-    fontSize: 11,
-    fontFamily: Fonts.judulTebal,
-    letterSpacing: 0.8,
-  },
-  titikLive: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#fff',
-  },
-  pil: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 7,
-    paddingVertical: 4,
-    borderRadius: 4,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-  },
-  pilTeks: {
-    color: '#fff',
-    fontSize: 11.5,
-    fontFamily: Fonts.semibold,
-    fontVariant: ['tabular-nums'],
+    marginTop: 1,
+    color: Media.redup,
+    fontFamily: Fonts.mono,
+    fontSize: 10,
+    letterSpacing: 0.6,
   },
   selubung: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    backgroundColor: 'rgba(12,14,13,0.6)',
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.two,
   },
   selubungTeks: {
-    color: '#fff',
+    color: TULANG,
     fontSize: 15,
     fontFamily: Fonts.semibold,
   },

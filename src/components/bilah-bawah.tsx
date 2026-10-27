@@ -1,49 +1,53 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Feather from '@expo/vector-icons/Feather';
 import { router } from 'expo-router';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { useEffect, type ComponentProps } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Fonts, Media } from '@/constants/theme';
+import { Bayangan, Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { ambilDraf } from '@/lib/draf-laporan';
 import { pulihkanPilihanGaleri } from '@/lib/galeri';
-
-type Ikon = ComponentProps<typeof Ionicons>['name'];
+import { useSiaranPublik } from '@/lib/live';
 
 type Item =
-  | { jenis: 'tab'; name: string; label: string; ikon: Ikon; ikonAktif: Ikon }
-  | { jenis: 'lapor' | 'live'; label: string; ikon: Ikon };
+  | { jenis: 'tab'; name: string; label: string; ikon: ComponentProps<typeof Feather>['name'] }
+  | { jenis: 'lapor'; label: string };
 
 const ITEM: Item[] = [
-  { jenis: 'tab', name: 'index', label: 'Beranda', ikon: 'home-outline', ikonAktif: 'home' },
-  { jenis: 'tab', name: 'jelajah', label: 'Jelajah', ikon: 'search-outline', ikonAktif: 'search' },
-  { jenis: 'lapor', label: 'Lapor', ikon: 'add' },
-  { jenis: 'live', label: 'Live', ikon: 'radio-outline' },
-  { jenis: 'tab', name: 'profil', label: 'Profil', ikon: 'person-outline', ikonAktif: 'person' },
+  { jenis: 'tab', name: 'index', label: 'Beranda', ikon: 'home' },
+  { jenis: 'tab', name: 'peta', label: 'Peta', ikon: 'map' },
+  { jenis: 'lapor', label: 'Lapor' },
+  { jenis: 'tab', name: 'siaran', label: 'Live', ikon: 'radio' },
+  { jenis: 'tab', name: 'profil', label: 'Profil', ikon: 'user' },
 ];
 
-/** Tinggi isi bilah tanpa ruang aman bawah. */
-const TINGGI_ISI = 58;
+const TINGGI_BILAH = 64;
 
-/** Tinggi bilah bawah, termasuk ruang aman bawah. */
-function tinggiBilahBawah(bawahAman: number): number {
-  return TINGGI_ISI + Math.max(bawahAman, 10);
+/** Jarak bilah dari tepi bawah: desain 26 di iPhone (ruang aman 34), paling sedikit 12. */
+function jarakBawah(ruangBawah: number): number {
+  return Math.max(ruangBawah - 8, 12);
 }
 
 /**
- * Bilah bawah dari desain: Beranda · Jelajah · ➕ · Live · Profil. ➕ dan Live
- * bukan tab — ➕ membuka kamera (atau melanjutkan draf), Live membuka siaran.
- * Di beranda bilahnya hitam pekat; di halaman lain mengikuti tema halaman.
+ * Ruang yang ditutupi bilah melayang, dari tepi bawah layar sampai sedikit di atas bilah.
+ * Isi yang digulir di layar tab memberi ruang sebesar ini di ujungnya supaya kartu terakhir
+ * tidak tertutup; peta & foto boleh terus sampai ke tepi di belakang bilah.
+ */
+export function ruangBilahBawah(ruangBawah: number): number {
+  return jarakBawah(ruangBawah) + TINGGI_BILAH + 16;
+}
+
+/**
+ * Bilah bawah melayang dari desain: pil tulang (tinta di mode terang) di atas isi, Beranda ·
+ * Peta · Lapor · Live · Profil. Tab terpilih = lingkaran tinta berikon tulang. Lapor bukan tab:
+ * pil sinyal berikon kamera dengan tulisan, membuka formulir laporan (melanjutkan draf yang
+ * belum terkirim). Titik sinyal di Live = ada siaran publik yang sedang berlangsung.
  */
 export function BilahBawah({ state, navigation, insets }: BottomTabBarProps) {
   const w = useTheme();
   const aktif = state.routes[state.index];
-  // Di beranda bilahnya hitam pekat supaya menyatu dengan video.
-  const gelap = aktif.name === 'index';
-  const warna = gelap
-    ? { aktif: '#fff', biasa: 'rgba(255,255,255,0.6)', latar: '#000', garis: 'rgba(255,255,255,0.1)' }
-    : { aktif: w.text, biasa: w.textSecondary, latar: w.background, garis: w.border };
+  // Tanpa memantau sendiri: daftarnya dimuat beranda & tab Live.
+  const adaSiaran = useSiaranPublik(false).length > 0;
 
   function tekanTab(name: string) {
     const route = state.routes.find((r) => r.name === name);
@@ -54,28 +58,13 @@ export function BilahBawah({ state, navigation, insets }: BottomTabBarProps) {
   }
 
   // Android bisa mematikan aplikasi saat galeri terbuka: ambil pilihan yang tertunda ke draf,
-  // lalu ➕ melanjutkannya. Bilah ini terpasang sejak aplikasi dibuka.
+  // lalu Lapor melanjutkannya. Bilah ini terpasang sejak aplikasi dibuka.
   useEffect(() => {
     void pulihkanPilihanGaleri();
   }, []);
 
-  // navigate, bukan push: ketukan ganda sebelum layar terbuka tidak menumpuk dua kamera/siaran.
-  function lapor() {
-    if (ambilDraf().lampiran.length > 0) router.navigate('/lapor');
-    else router.navigate({ pathname: '/kamera', params: { lanjut: '1' } });
-  }
-
   return (
-    <View
-      style={[
-        styles.bilah,
-        {
-          height: tinggiBilahBawah(insets.bottom),
-          paddingBottom: Math.max(insets.bottom, 10),
-          backgroundColor: warna.latar,
-          borderTopColor: warna.garis,
-        },
-      ]}>
+    <View style={[styles.bilah, { bottom: jarakBawah(insets.bottom), backgroundColor: w.bilah }]}>
       {ITEM.map((item) => {
         if (item.jenis === 'lapor') {
           return (
@@ -83,32 +72,29 @@ export function BilahBawah({ state, navigation, insets }: BottomTabBarProps) {
               key="lapor"
               accessibilityRole="button"
               accessibilityLabel="Buat laporan"
-              onPress={lapor}
-              style={({ pressed }) => [styles.slot, pressed && styles.ditekan]}>
-              <View style={styles.tombolLapor}>
-                <Ionicons name="add" size={26} color={Media.onLimau} />
-              </View>
-              <Text style={[styles.label, { color: warna.biasa }]}>{item.label}</Text>
+              // navigate, bukan push: ketukan ganda sebelum layar terbuka tidak menumpuk dua formulir.
+              onPress={() => router.navigate('/lapor')}
+              style={({ pressed }) => [styles.lapor, { backgroundColor: w.accent }, pressed && styles.ditekan]}>
+              <Feather name="camera" size={19} color={w.onAccent} />
+              <Text style={[styles.teksLapor, { color: w.onAccent }]} maxFontSizeMultiplier={1.2}>
+                {item.label}
+              </Text>
             </Pressable>
           );
         }
-        const fokus = item.jenis === 'tab' && aktif.name === item.name;
+        const fokus = aktif.name === item.name;
         return (
           <Pressable
-            key={item.label}
-            accessibilityRole={item.jenis === 'tab' ? 'tab' : 'button'}
+            key={item.name}
+            accessibilityRole="tab"
             accessibilityState={{ selected: fokus }}
-            accessibilityLabel={item.jenis === 'live' ? 'Siaran langsung' : item.label}
-            onPress={() => (item.jenis === 'tab' ? tekanTab(item.name) : router.navigate('/live'))}
-            style={styles.slot}>
-            <View style={styles.wadahIkon}>
-              <Ionicons
-                name={fokus && item.jenis === 'tab' ? item.ikonAktif : item.ikon}
-                size={24}
-                color={fokus ? warna.aktif : warna.biasa}
-              />
-            </View>
-            <Text style={[styles.label, { color: fokus ? warna.aktif : warna.biasa }]}>{item.label}</Text>
+            accessibilityLabel={item.name === 'siaran' && adaSiaran ? `${item.label}, ada siaran berlangsung` : item.label}
+            onPress={() => tekanTab(item.name)}
+            style={({ pressed }) => [styles.slot, fokus && { backgroundColor: w.onBilah }, pressed && styles.ditekan]}>
+            <Feather name={item.ikon} size={21} color={fokus ? w.bilah : w.onBilah} />
+            {item.name === 'siaran' && adaSiaran && (
+              <View style={[styles.titikLive, { backgroundColor: w.accent, borderColor: fokus ? w.onBilah : w.bilah }]} />
+            )}
           </Pressable>
         );
       })}
@@ -118,38 +104,48 @@ export function BilahBawah({ state, navigation, insets }: BottomTabBarProps) {
 
 const styles = StyleSheet.create({
   bilah: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    height: TINGGI_BILAH,
+    paddingHorizontal: 8,
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    paddingHorizontal: 9,
-    paddingTop: 6,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: TINGGI_BILAH / 2,
+    boxShadow: Bayangan.hutan,
   },
   slot: {
-    flex: 1,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 3,
-    paddingBottom: 2,
+    justifyContent: 'center',
   },
   ditekan: {
     transform: [{ scale: 0.94 }],
   },
-  wadahIkon: {
-    minHeight: 30,
+  lapor: {
+    height: 48,
+    paddingHorizontal: 18,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 24,
   },
-  tombolLapor: {
-    width: 48,
-    height: 32,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Media.limau,
-    boxShadow: '0 5px 18px rgba(184,243,74,0.25)',
+  teksLapor: {
+    fontFamily: Fonts.judulTebal,
+    fontSize: 15,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
   },
-  label: {
-    fontFamily: Fonts.semibold,
-    fontSize: 11,
+  titikLive: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    borderWidth: 2,
   },
 });

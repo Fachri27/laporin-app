@@ -36,8 +36,9 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   judul: {
-    fontFamily: Fonts.judul,
-    fontSize: 16,
+    fontFamily: Fonts.judulTebal,
+    fontSize: 17,
+    lineHeight: 21,
   },
   paragraf: {
     fontFamily: Fonts.regular,

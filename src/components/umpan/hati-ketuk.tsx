@@ -2,6 +2,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useState } from 'react';
 import { Animated, Easing, StyleSheet } from 'react-native';
 
+import { SINYAL } from '@/constants/theme';
+
 export type HatiKetuk = { id: number; x: number; y: number; miring: number };
 
 /** Hati besar di titik ketuk-ganda, seperti saat menyukai video di TikTok. */
@@ -37,7 +39,7 @@ export function HatiKetukGanda({ hati: h, onSelesai }: { hati: HatiKetuk; onSele
           ],
         },
       ]}>
-      <Ionicons name="heart" size={100} color="#ff2d55" />
+      <Ionicons name="heart" size={100} color={SINYAL} />
     </Animated.View>
   );
 }

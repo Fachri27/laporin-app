@@ -1,9 +1,9 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Feather from '@expo/vector-icons/Feather';
 import { lazy, Suspense } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Fonts, Radius, Spacing } from '@/constants/theme';
+import { Fonts, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { halanganPeta, type HalanganPeta } from '@/lib/peta-tersedia';
 
@@ -25,7 +25,7 @@ const PETUNJUK: Record<Exclude<HalanganPeta, null>, { judul: string; teks: strin
       }
     : {
         judul: 'Peta belum tersedia',
-        teks: 'Versi aplikasi ini belum memuat peta. Perbarui aplikasi; laporan tetap bisa dilihat di Beranda dan Jelajah.',
+        teks: 'Versi aplikasi ini belum memuat peta. Perbarui aplikasi; laporan tetap bisa dilihat di Beranda dan Pencarian.',
       },
   'perlu-kunci': __DEV__
     ? {
@@ -37,7 +37,7 @@ const PETUNJUK: Record<Exclude<HalanganPeta, null>, { judul: string; teks: strin
       }
     : {
         judul: 'Peta belum tersedia',
-        teks: 'Peta belum tersedia di versi aplikasi ini. Laporan tetap bisa dilihat di Beranda dan Jelajah.',
+        teks: 'Peta belum tersedia di versi aplikasi ini. Laporan tetap bisa dilihat di Beranda dan Pencarian.',
       },
 };
 
@@ -47,9 +47,12 @@ export default function LayarPeta() {
 
   if (halanganPeta) {
     const p = PETUNJUK[halanganPeta];
+    // .empty-view di desain: ikon, judul, satu paragraf — di bagian atas layar, bukan di tengah.
     return (
-      <View style={[styles.tengah, { backgroundColor: w.background, paddingBottom: insets.bottom }]}>
-        <Ionicons name="map-outline" size={56} color={w.accentText} />
+      <View style={[styles.kosong, { backgroundColor: w.background, paddingTop: insets.top + 72 }]}>
+        <View style={[styles.ikon, { borderColor: w.border }]}>
+          <Feather name="map" size={26} color={w.text} />
+        </View>
         <Text style={[styles.judul, { color: w.text }]}>{p.judul}</Text>
         <Text style={[styles.teks, { color: w.textSecondary }]}>{p.teks}</Text>
         {p.kode && (
@@ -64,7 +67,7 @@ export default function LayarPeta() {
   return (
     <Suspense
       fallback={
-        <View style={[styles.tengah, { backgroundColor: w.background }]}>
+        <View style={[styles.memuat, { backgroundColor: w.background }]}>
           <ActivityIndicator color={w.accentText} />
         </View>
       }>
@@ -74,31 +77,47 @@ export default function LayarPeta() {
 }
 
 const styles = StyleSheet.create({
-  tengah: {
+  kosong: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 35,
+  },
+  memuat: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.three,
-    paddingHorizontal: Spacing.four,
+  },
+  ikon: {
+    width: 64,
+    height: 64,
+    borderWidth: 1,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   judul: {
-    fontSize: 20,
+    marginTop: 18,
     fontFamily: Fonts.judulTebal,
+    fontSize: 22,
+    lineHeight: 27,
     textAlign: 'center',
   },
   teks: {
-    fontSize: 14.5,
+    marginTop: 8,
+    fontFamily: Fonts.regular,
+    fontSize: 14,
     lineHeight: 21,
     textAlign: 'center',
   },
   kode: {
     alignSelf: 'stretch',
+    marginTop: Spacing.three,
     fontFamily: Fonts.mono,
-    fontSize: 12.5,
+    fontSize: 12,
     lineHeight: 19,
     padding: Spacing.three,
     borderWidth: 1,
-    borderRadius: Radius.medium,
+    borderRadius: 16,
     overflow: 'hidden',
   },
 });

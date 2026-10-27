@@ -1,532 +1,539 @@
+import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { router, useIsFocused, useLocalSearchParams, useScrollToTop } from 'expo-router';
-import * as Haptics from 'expo-haptics';
-import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
-  type ViewToken,
-} from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { Image } from 'expo-image';
+import { router, useIsFocused, useScrollToTop } from 'expo-router';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { TombolIkon } from '@/components/bilah-atas';
+import { ruangBilahBawah } from '@/components/bilah-bawah';
+import { ChipFilter } from '@/components/chip-filter';
+import { KisiUndak } from '@/components/poster-laporan';
+import { TitikLive } from '@/components/titik-live';
 import { Tombol } from '@/components/tombol';
-import { KartuLive } from '@/components/umpan/kartu-live';
-import { KartuUmpan } from '@/components/umpan/kartu-umpan';
-import { Colors, Media, Radius, Spacing } from '@/constants/theme';
-import { muatSiaranPublik, useSiaranPublik, type SiaranPublik } from '@/lib/live';
-import { tampilkanMenu } from '@/lib/menu-aksi';
-import { posisiSekali } from '@/lib/lokasi-live';
-import { jarakKm, muatUmpan, useUmpan, type Berita } from '@/lib/umpan';
+import { VideoUmpan } from '@/components/umpan/media-umpan';
+import { Fonts, Media, SINYAL, TINTA, TULANG } from '@/constants/theme';
+import { useAplikasiAktif } from '@/hooks/use-aplikasi-aktif';
+import { useTheme } from '@/hooks/use-theme';
+import { bukaKomentar, bukaLaporan } from '@/lib/aksi-laporan';
+import { aturSuka, useAkun } from '@/lib/akun';
+import { muatSiaranPublik, useSiaranPublik } from '@/lib/live';
+import { kosongkanKabar, muatKabar, useKabar } from '@/lib/notifikasi';
+import {
+  hitunganTeks,
+  kreditLaporan,
+  LEBAR_LAYAR_PX,
+  muatUmpan,
+  sampulDari,
+  SITUS_URL,
+  urlGambar,
+  useUmpan,
+  type Berita,
+} from '@/lib/umpan';
 
-type Urutan = 'terbaru' | 'terdekat';
-
-/** Siaran langsung warga tampil di atas umpan, sebelum laporan. */
-type ItemBeranda = { jenis: 'live'; siaran: SiaranPublik } | { jenis: 'laporan'; berita: Berita };
-
-/** Kunci kartu di daftar — juga untuk mengingat kartu yang sedang ditonton. */
-function kunciItem(x: ItemBeranda): string {
-  return x.jenis === 'live' ? `live-${x.siaran.ruang}` : String(x.berita.id);
-}
-
-/**
- * Kartu dianggap ditonton setelah hampir seluruhnya terlihat, yaitu di ujung
- * geseran. Pemutar video baru dibuat/diputar setelah itu, bukan di tengah
- * animasi, supaya geseran tidak tersendat.
- */
-const ATURAN_TERLIHAT = { itemVisiblePercentThreshold: 90 };
+const KARTU_TERKINI = 12;
 
 /**
- * Beranda: laporan karhutla selayar penuh, digeser ke atas/bawah seperti
- * aplikasi video pendek. Isinya sama dengan daftar di beranda situs.
+ * Beranda dari artboard "Feed", dipangkas supaya tidak ramai: merek kapital kecil (+ jumlah siaran
+ * live bila ada), judul besar berisi jumlah laporan, chip pulau, kartu sorotan (laporan terbaru
+ * yang bergambar; yang bervideo diputar otomatis tanpa suara), lalu "TERBARU" dengan kisi
+ * berundak dua kolom laporan berikutnya. Chip menyaring judul, sorotan, dan kisi sekaligus. Semua dari data nyata: umpan
+ * situs dan siaran publik. Mengetuk kartu membuka detail.
  */
 export default function LayarBeranda() {
+  const w = useTheme();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const fokus = useIsFocused();
+  const aplikasiAktif = useAplikasiAktif();
+  const akun = useAkun();
   const { status, berita } = useUmpan();
-  const { laporan } = useLocalSearchParams<{ laporan?: string }>();
-  const [ukuran, setUkuran] = useState<{ lebar: number; tinggi: number } | null>(null);
-  // Kartu yang ditonton diingat dengan kuncinya: bila umpan berganti sendiri (laporan atau
-  // siaran baru di atas, kembali dari latar belakang), kartu itu tetap di layar walau
-  // posisinya bergeser. kunci null = ikuti posisi saja (awal, tarik-segarkan, ganti urutan).
-  const [ditonton, setDitonton] = useState<{ kunci: string | null; indeks: number }>({ kunci: null, indeks: 0 });
-  /** Indeks kartu yang sedang tampil di FlatList. */
-  const indeksTampil = useRef(0);
-  const [urutan, setUrutan] = useState<Urutan>('terbaru');
-  const [acuan, setAcuan] = useState<{ lat: number; lng: number } | null>(null);
-  const [mencariLokasi, setMencariLokasi] = useState(false);
-  const [bisu, setBisu] = useState(false);
+  const siaran = useSiaranPublik(fokus);
+  const { belumDibaca } = useKabar();
   const [menyegarkan, setMenyegarkan] = useState(false);
-  const [pesan, setPesan] = useState('');
-  const [sedangZoom, setSedangZoom] = useState(false);
-  // Mode bersih ala TikTok: hanya media yang tampil, tetap bisa digeser ke laporan lain.
-  const [bersih, setBersih] = useState(false);
-  const bersihSekarang = useRef(false);
-  const tampak = useSharedValue(1);
-  const gayaAtas = useAnimatedStyle(() => ({ opacity: tampak.value }));
-  const gayaKeluar = useAnimatedStyle(() => ({ opacity: 1 - tampak.value }));
-  const daftar = useRef<FlatList<ItemBeranda>>(null);
-  const siaranPublik = useSiaranPublik(fokus);
-  // Siaran yang usai saat kartunya sedang ditonton tetap di umpan dengan tulisan "Siaran
-  // sudah berakhir" sampai warga menggeser; siaran lain langsung mengikuti daftar terbaru.
-  const [siaranLalu, setSiaranLalu] = useState(siaranPublik);
-  const [liveUsai, setLiveUsai] = useState<{ siaran: SiaranPublik; indeks: number } | null>(null);
-  if (siaranLalu !== siaranPublik) {
-    setSiaranLalu(siaranPublik);
-    const i = siaranLalu.findIndex((s) => `live-${s.ruang}` === ditonton.kunci);
-    if (i >= 0 && !siaranPublik.some((s) => s.ruang === siaranLalu[i].ruang)) setLiveUsai({ siaran: siaranLalu[i], indeks: i });
-  }
-  if (liveUsai && ditonton.kunci !== `live-${liveUsai.siaran.ruang}`) setLiveUsai(null);
-  const liveDiUmpan = useMemo(() => {
-    if (!liveUsai || siaranPublik.some((s) => s.ruang === liveUsai.siaran.ruang)) return siaranPublik;
-    const d = [...siaranPublik];
-    d.splice(Math.min(liveUsai.indeks, d.length), 0, liveUsai.siaran);
-    return d;
-  }, [siaranPublik, liveUsai]);
-  // Menekan tab Beranda lagi = kembali ke laporan teratas.
-  useScrollToTop(daftar);
+  const [gagalSegar, setGagalSegar] = useState(false);
+  const gulir = useRef<ScrollView>(null);
+  // Menekan tab Beranda lagi = kembali ke atas.
+  useScrollToTop(gulir);
+  /** Batas bawah kartu sorotan di dalam gulungan; lewat dari situ videonya berhenti. */
+  const [batasSorotan, setBatasSorotan] = useState(Number.POSITIVE_INFINITY);
+  const [lewatSorotan, setLewatSorotan] = useState(false);
+  /** Video sorotan diputar tanpa suara sampai warga menyalakannya. */
+  const [bisu, setBisu] = useState(true);
+  /** Saringan pulau; null = semua. */
+  const [pulau, setPulau] = useState<string | null>(null);
 
-  // Titik acuan dikunci saat "Terdekat" dipilih, supaya urutan tidak berubah sendiri saat warga berjalan.
-  const urut = useMemo(
-    () => (urutan === 'terdekat' && acuan ? [...berita].sort((a, b) => jarakKm(acuan, a) - jarakKm(acuan, b)) : berita),
-    [urutan, acuan, berita],
-  );
-  const atas = insets.top + 44;
-  const daftarItem = useMemo<ItemBeranda[]>(
-    () => [
-      ...liveDiUmpan.map((siaran) => ({ jenis: 'live' as const, siaran })),
-      ...urut.map((b) => ({ jenis: 'laporan' as const, berita: b })),
-    ],
-    [liveDiUmpan, urut],
-  );
-  const iDitonton = ditonton.kunci === null ? -1 : daftarItem.findIndex((x) => kunciItem(x) === ditonton.kunci);
-  // Kartu yang ditonton hilang dari umpan: tetap di posisi yang sama.
-  const aktif = iDitonton >= 0 ? iDitonton : Math.min(ditonton.indeks, Math.max(0, daftarItem.length - 1));
-
-  // Kartu teratas terakhir yang dilihat warga. Kartu baru yang masuk di atasnya tidak
-  // menggeser layar (lihat di bawah), jadi diberitahukan lewat pil yang membawa ke atas.
-  const kunciAtas = daftarItem[0] ? kunciItem(daftarItem[0]) : null;
-  const [atasDilihat, setAtasDilihat] = useState(kunciAtas);
-  if (aktif === 0 && atasDilihat !== kunciAtas) setAtasDilihat(kunciAtas);
-  const iAtasDilihat = atasDilihat === null ? -1 : daftarItem.findIndex((x) => kunciItem(x) === atasDilihat);
-  const pil =
-    aktif > 0 && iAtasDilihat > 0
-      ? daftarItem.slice(0, iAtasDilihat).some((x) => x.jenis === 'live')
-        ? 'LIVE baru'
-        : 'Laporan baru'
-      : null;
-
-  // Umpan berganti sendiri: gulir ke posisi baru kartu yang sedang ditonton supaya layar
-  // tidak meloncat ke kartu lain (dan video laporan yang ditonton tidak berhenti).
-  useLayoutEffect(() => {
-    if (aktif === indeksTampil.current) return;
-    indeksTampil.current = aktif;
-    daftar.current?.scrollToIndex({ index: aktif, animated: false });
-  }, [aktif, daftarItem]);
-
-  const gantiBisu = useCallback(() => setBisu((x) => !x), []);
-
-  // Stabil (tanpa dependensi state) supaya kartu umpan yang di-memo tidak ikut render ulang.
-  const gantiBersih = useCallback(() => {
-    const baru = !bersihSekarang.current;
-    bersihSekarang.current = baru;
-    setBersih(baru);
-    setPesan(baru ? 'Mode bersih · tekan lama lagi untuk keluar' : '');
-    tampak.set(withTiming(baru ? 0 : 1, { duration: 160 }));
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-  }, [tampak]);
-
-  // Tekan lama ala TikTok: menu Mode bersih & Laporkan. Di mode bersih langsung keluar.
-  const menuKartu = useCallback(
-    (b: Berita) => {
-      if (bersihSekarang.current) return gantiBersih();
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      tampilkanMenu(b.judul, [
-        { label: 'Mode bersih', aksi: gantiBersih },
-        {
-          label: 'Laporkan',
-          merusak: true,
-          aksi: () => router.push({ pathname: '/laporkan', params: { jenis: 'laporan', id: String(b.id), ringkas: b.judul } }),
-        },
-      ]);
-    },
-    [gantiBersih],
-  );
-
-  const saatTerlihat = useCallback(({ viewableItems }: { viewableItems: ViewToken<ItemBeranda>[] }) => {
-    const v = viewableItems[0];
-    if (v?.index == null) return;
-    const indeks = v.index;
-    // Indeks sama tetapi kartunya lain = umpan berganti di bawah layar, bukan digeser warga:
-    // kartu yang ditonton tetap, efek di atas menggulir ke posisi barunya.
-    const diam = indeks === indeksTampil.current;
-    indeksTampil.current = indeks;
-    setDitonton((d) => (diam && d.kunci !== null ? d : { kunci: kunciItem(v.item), indeks }));
-  }, []);
-
-  /** Lupakan kartu yang ditonton: kartu teratas (yang baru) boleh menggantikannya. */
-  function ikutiAtas() {
-    indeksTampil.current = 0;
-    setDitonton({ kunci: null, indeks: 0 });
-  }
-
+  // Titik di lonceng = ada kabar status laporan yang belum dilihat (lib/notifikasi.ts).
+  const idAkun = akun.status === 'masuk' ? akun.pengguna?.id : undefined;
   useEffect(() => {
-    if (!pesan) return;
-    const id = setTimeout(() => setPesan(''), 2400);
-    return () => clearTimeout(id);
-  }, [pesan]);
+    if (idAkun && fokus) void muatKabar(idAkun);
+    else if (akun.status === 'tamu') kosongkanKabar();
+  }, [idAkun, fokus, akun.status]);
 
-  // Dari peta/Laporanku, "Tonton" membuka beranda tepat di laporan itu. Laporan yang baru
-  // tayang bisa belum ada di umpan yang termuat: umpan diambil ulang sekali sebelum menyerah.
-  const laporanDicari = useRef<string | null>(null);
-  useEffect(() => {
-    if (!laporan || !ukuran || status === 'memuat') return;
-    const i = daftarItem.findIndex((x) => x.jenis === 'laporan' && String(x.berita.id) === laporan);
-    if (i >= 0) {
-      laporanDicari.current = null;
-      daftar.current?.scrollToIndex({ index: i, animated: false });
-      router.setParams({ laporan: undefined });
-      return;
-    }
-    if (laporanDicari.current === laporan) return;
-    laporanDicari.current = laporan;
-    void muatUmpan().then((ok) => {
-      // Sudah ketemu: efek ini jalan lagi begitu umpan baru masuk dan menggulir ke sana.
-      if (laporanDicari.current !== laporan) return;
-      laporanDicari.current = null;
-      setPesan(ok ? 'Laporan ini belum muncul di beranda. Coba lagi sebentar lagi.' : 'Gagal memperbarui. Periksa koneksi.');
-      router.setParams({ laporan: undefined });
-    });
-  }, [laporan, ukuran, status, daftarItem]);
+  // Chip pulau diurutkan dari yang paling banyak laporannya.
+  const jumlahPulau = new Map<string, number>();
+  for (const b of berita) if (b.pulau) jumlahPulau.set(b.pulau, (jumlahPulau.get(b.pulau) ?? 0) + 1);
+  const daftarPulau = [...jumlahPulau.keys()].sort((a, b) => (jumlahPulau.get(b) ?? 0) - (jumlahPulau.get(a) ?? 0));
+  // Pulau terpilih yang hilang setelah umpan disegarkan kembali ke Semua.
+  const pulauAktif = pulau && jumlahPulau.has(pulau) ? pulau : null;
+  const daftar = pulauAktif ? berita.filter((b) => b.pulau === pulauAktif) : berita;
+  // Sorotan: laporan terbaru yang punya gambar; sisanya ke kisi.
+  const sorotan = daftar.find((b) => sampulDari(b)) ?? daftar[0];
+  const terkini = daftar.filter((b) => b !== sorotan).slice(0, KARTU_TERKINI);
 
-  async function pilihUrutan(u: Urutan) {
-    if (u === urutan || mencariLokasi) return;
-    // Posisi diambil lagi setiap kali "Terdekat" dipilih: warga bisa sudah berpindah jauh.
-    // posisiSekali memakai posisi yang masih baru bila ada, jadi biasanya langsung.
-    if (u === 'terdekat') {
-      setMencariLokasi(true);
-      const p = await posisiSekali();
-      setMencariLokasi(false);
-      if (!p) return setPesan('Lokasi tidak tersedia. Izinkan lokasi untuk melihat laporan terdekat.');
-      setAcuan({ lat: p.lat, lng: p.lng });
-    }
-    setUrutan(u);
-    ikutiAtas();
-    daftar.current?.scrollToOffset({ offset: 0, animated: false });
-  }
+  const [baris1, baris2] =
+    berita.length > 0
+      ? [`${daftar.length} laporan`, pulauAktif ? `di ${pulauAktif}` : daftarPulau.length > 0 ? `dari ${daftarPulau.length} pulau` : 'terverifikasi']
+      : status === 'memuat'
+        ? ['Memuat', 'laporan']
+        : status === 'galat'
+          ? ['Gagal', 'memuat']
+          : ['Belum ada', 'laporan'];
 
   async function segarkan() {
-    // Tarik-segarkan (selalu dari kartu teratas) = lihat yang terbaru, bukan mempertahankan kartu lama.
-    ikutiAtas();
     setMenyegarkan(true);
-    // Siaran tidak ditunggu: daftarnya menyusul sendiri, dan putarannya tidak boleh tertahan siaran.
+    // Siaran & kabar tidak ditunggu: masing-masing menyusul sendiri.
     void muatSiaranPublik();
+    if (idAkun) void muatKabar(idAkun);
     const ok = await muatUmpan();
     setMenyegarkan(false);
-    if (!ok) setPesan('Gagal memperbarui. Periksa koneksi.');
+    setGagalSegar(!ok);
   }
 
-  let isi;
-  if (ukuran && daftarItem.length > 0) {
-    isi = (
-      <FlatList
-        ref={daftar}
-        data={daftarItem}
-        keyExtractor={kunciItem}
-        renderItem={({ item, index }) =>
-          item.jenis === 'live' ? (
-            <KartuLive
-              siaran={item.siaran}
-              lebar={ukuran.lebar}
-              tinggi={ukuran.tinggi}
-              putar={fokus && index === aktif}
-              berakhir={!siaranPublik.some((s) => s.ruang === item.siaran.ruang)}
-              acuan={urutan === 'terdekat' ? acuan : null}
-              atas={atas}
-            />
-          ) : (
-            <KartuUmpan
-              berita={item.berita}
-              lebar={ukuran.lebar}
-              tinggi={ukuran.tinggi}
-              putar={fokus && index === aktif}
-              siapkan={Math.abs(index - aktif) <= 1}
-              bisu={bisu}
-              onBisu={gantiBisu}
-              acuan={urutan === 'terdekat' ? acuan : null}
-              atas={atas}
-              onPesan={setPesan}
-              onZoom={setSedangZoom}
-              bersih={bersih}
-              onTekanLama={menuKartu}
-            />
-          )
-        }
-        getItemLayout={(_, index) => ({ length: ukuran.tinggi, offset: ukuran.tinggi * index, index })}
-        // Satu geseran = satu kartu, seperti TikTok. Lebih ringan dan mantap di
-        // Android daripada pagingEnabled, yang bisa melompati beberapa kartu.
-        snapToInterval={ukuran.tinggi}
-        scrollEnabled={!sedangZoom}
-        snapToAlignment="start"
-        decelerationRate="fast"
-        disableIntervalMomentum
+  return (
+    <View style={[styles.layar, { backgroundColor: w.background }]}>
+      <ScrollView
+        ref={gulir}
         showsVerticalScrollIndicator={false}
-        onViewableItemsChanged={saatTerlihat}
-        viewabilityConfig={ATURAN_TERLIHAT}
-        initialNumToRender={2}
-        maxToRenderPerBatch={2}
-        updateCellsBatchingPeriod={100}
-        windowSize={5}
-        removeClippedSubviews
+        onScroll={(e) => {
+          const lewat = e.nativeEvent.contentOffset.y > batasSorotan - 40;
+          if (lewat !== lewatSorotan) setLewatSorotan(lewat);
+        }}
+        scrollEventThrottle={32}
+        contentContainerStyle={{ paddingTop: insets.top + 6, paddingBottom: ruangBilahBawah(insets.bottom) + 8 }}
         refreshControl={
           <RefreshControl
             refreshing={menyegarkan}
             onRefresh={() => void segarkan()}
-            tintColor="#fff"
-            colors={[Colors.dark.accent]}
-            progressViewOffset={atas}
+            tintColor={w.text}
+            colors={[w.accent]}
+            progressViewOffset={insets.top}
           />
-        }
-      />
-    );
-  } else if (status === 'galat') {
-    isi = (
-      <View style={styles.tengah}>
-        <Ionicons name="cloud-offline-outline" size={48} color="rgba(255,255,255,0.7)" />
-        <Text style={styles.teksTengah}>Gagal memuat laporan. Periksa koneksi lalu coba lagi.</Text>
-        <Tombol judul="Coba lagi" ikon="refresh" onPress={() => void muatUmpan()} />
-      </View>
-    );
-  } else if (status === 'siap') {
-    isi = (
-      <View style={styles.tengah}>
-        <Ionicons name="leaf-outline" size={48} color="rgba(255,255,255,0.7)" />
-        <Text style={styles.teksTengah}>Belum ada laporan yang tayang.</Text>
-        <Tombol judul="Muat ulang" ikon="refresh" onPress={() => void segarkan()} />
-      </View>
-    );
-  } else {
-    isi = (
-      <View style={styles.tengah}>
-        <ActivityIndicator color="#fff" size="large" />
-      </View>
-    );
-  }
-
-  return (
-    <View
-      style={styles.layar}
-      onLayout={(e) => {
-        const { width, height } = e.nativeEvent.layout;
-        setUkuran((u) => (u?.lebar === width && u.tinggi === height ? u : { lebar: width, tinggi: height }));
-      }}>
-      {fokus && <StatusBar style="light" />}
-      {isi}
-
-      <Animated.View
-        style={[styles.atas, { paddingTop: insets.top + Spacing.two }, gayaAtas]}
-        pointerEvents={bersih ? 'none' : 'box-none'}>
-        {/* Seperti TikTok: LIVE di kiri atas, (pencarian →) peta di kanan atas. */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Siaran langsung ke petugas"
-          onPress={() => router.push('/live')}
-          hitSlop={10}
-          style={[styles.ikonAtas, styles.ikonKiri, { top: insets.top + 2 }]}>
-          <Ionicons name="radio-outline" size={22} color="#fff" />
-          <Text style={styles.ikonAtasTeks}>LIVE</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Peta laporan"
-          onPress={() => router.push('/peta')}
-          hitSlop={10}
-          style={[styles.ikonAtas, styles.ikonKanan, { top: insets.top + 2 }]}>
-          <Ionicons name="map-outline" size={22} color="#fff" />
-        </Pressable>
-        {(['terbaru', 'terdekat'] as const).map((u) => (
+        }>
+        <View style={styles.kepala}>
           <Pressable
-            key={u}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: urutan === u }}
-            onPress={() => void pilihUrutan(u)}
+            accessibilityRole={siaran.length > 0 ? 'button' : undefined}
+            accessibilityLabel={siaran.length > 0 ? `${siaran.length} siaran live berlangsung. Buka tab Live.` : undefined}
+            disabled={siaran.length === 0}
+            onPress={() => router.navigate('/siaran')}
             hitSlop={8}
-            style={styles.tabUrutan}>
-            <Text style={[styles.tabTeks, urutan === u && styles.tabTeksAktif]}>
-              {u === 'terbaru' ? 'Terbaru' : 'Terdekat'}
+            style={styles.status}>
+            <TitikLive warna={w.accent} berdenyut={siaran.length > 0} ukuran={8} />
+            <Text style={[styles.teksStatus, { color: w.text }]} numberOfLines={1}>
+              LAPORIN{siaran.length > 0 ? ` · ${siaran.length} LIVE` : ''}
             </Text>
-            <View style={[styles.garis, urutan !== u && styles.garisMati]} />
           </Pressable>
-        ))}
-        {mencariLokasi && <ActivityIndicator color="#fff" size="small" style={styles.pemuatLokasi} />}
-      </Animated.View>
-
-      {pil && !bersih && (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${pil} di atas — ketuk untuk melihat`}
-          onPress={() => daftar.current?.scrollToOffset({ offset: 0, animated: false })}
-          hitSlop={8}
-          style={[styles.pil, pil === 'LIVE baru' && styles.pilLive, { top: atas + Spacing.two }]}>
-          <Ionicons name="arrow-up" size={14} color="#fff" />
-          <Text style={styles.pilTeks}>{pil}</Text>
-        </Pressable>
-      )}
-
-      <Animated.View
-        style={[styles.keluarBersih, { top: insets.top + 2 }, gayaKeluar]}
-        pointerEvents={bersih ? 'auto' : 'none'}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Keluar dari mode bersih"
-          onPress={gantiBersih}
-          hitSlop={10}
-          style={styles.tombolKeluarBersih}>
-          <Ionicons name="contract-outline" size={20} color="#fff" />
-        </Pressable>
-      </Animated.View>
-
-      {pesan !== '' && (
-        <View style={styles.pesan} pointerEvents="none">
-          <Text style={styles.pesanTeks}>{pesan}</Text>
+          <View style={styles.aksiKepala}>
+            <TombolIkon ikon="search" label="Cari laporan" onPress={() => router.push('/cari')} />
+            <TombolIkon
+              ikon="bell"
+              label={belumDibaca > 0 ? `Notifikasi, ${belumDibaca} baru` : 'Notifikasi'}
+              titik={belumDibaca > 0}
+              onPress={() => router.push('/notifikasi')}
+            />
+          </View>
         </View>
-      )}
+
+        <Text style={[styles.h1, { color: w.text }]} accessibilityRole="header" numberOfLines={2} adjustsFontSizeToFit>
+          <Text style={{ color: w.accentText }}>{baris1}</Text>
+          {'\n'}
+          {baris2}
+        </Text>
+        {gagalSegar && berita.length > 0 && (
+          <Text style={[styles.catatan, { color: w.danger }]}>Gagal memperbarui. Periksa koneksi lalu tarik ke bawah.</Text>
+        )}
+
+        {daftarPulau.length > 1 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chip}>
+            <ChipFilter label="Semua" netral aktif={!pulauAktif} onPress={() => setPulau(null)} />
+            {daftarPulau.map((p) => (
+              <ChipFilter key={p} label={p} aktif={p === pulauAktif} onPress={() => setPulau(p)} />
+            ))}
+          </ScrollView>
+        )}
+
+        {sorotan ? (
+          <View onLayout={(e) => setBatasSorotan(e.nativeEvent.layout.y + e.nativeEvent.layout.height)}>
+            <KartuSorotan
+              berita={sorotan}
+              // Lebih tinggi dari desain (286 di layar 390) supaya videonya terlihat jelas.
+              tinggi={Math.round(Math.min(Math.max(width * 1.15, 380), 560))}
+              putar={fokus && !lewatSorotan && aplikasiAktif}
+              tampilVideo={fokus}
+              bisu={bisu}
+              onBisu={() => setBisu((x) => !x)}
+            />
+          </View>
+        ) : (
+          <View style={[styles.kosong, { backgroundColor: w.surface }]}>
+            {status === 'memuat' ? (
+              <ActivityIndicator color={w.text} size="large" />
+            ) : (
+              <>
+                <Feather name={status === 'galat' ? 'wifi-off' : 'search'} size={28} color={w.textSecondary} />
+                <Text style={[styles.teksKosong, { color: w.textSecondary }]}>
+                  {status === 'galat'
+                    ? __DEV__
+                      ? // IP laptop di .env berubah setiap ganti Wi-Fi: tunjukkan alamat yang dicoba.
+                        `Tidak bisa menghubungi ${SITUS_URL}. Periksa EXPO_PUBLIC_SITUS_URL di .env, lalu npx expo start --clear.`
+                      : 'Periksa koneksi lalu tarik ke bawah untuk mencoba lagi.'
+                    : 'Laporan yang sudah diverifikasi petugas tampil di sini.'}
+                </Text>
+                {status === 'galat' && <Tombol judul="Coba lagi" ikon="refresh" ragam="sekunder" onPress={() => void muatUmpan()} />}
+              </>
+            )}
+          </View>
+        )}
+
+        {terkini.length > 0 && (
+          <>
+            <View style={styles.kepalaKisi}>
+              <Text style={[styles.labelKisi, { color: w.text }]} accessibilityRole="header">
+                TERBARU <Text style={{ color: w.accent }}>●</Text> {terkini.length} LAPORAN
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={pulauAktif ? `Lihat semua laporan di ${pulauAktif}` : 'Lihat semua laporan'}
+                // Sedang disaring: Pencarian langsung menelusuri pulau itu.
+                onPress={() => (pulauAktif ? router.push({ pathname: '/cari', params: { q: pulauAktif } }) : router.push('/cari'))}
+                hitSlop={10}>
+                <Text style={[styles.labelKisi, { color: w.text }]}>LIHAT SEMUA →</Text>
+              </Pressable>
+            </View>
+            <KisiUndak berita={terkini} />
+          </>
+        )}
+      </ScrollView>
+      {/* Isi yang digulir tidak lewat di bawah jam & ikon status bar. */}
+      <View pointerEvents="none" style={[styles.penutup, { height: insets.top, backgroundColor: w.background }]} />
     </View>
   );
 }
 
-const bayangan = {
-  textShadowColor: 'rgba(0,0,0,0.6)',
-  textShadowOffset: { width: 0, height: 1 },
-  textShadowRadius: 3,
-} as const;
+/**
+ * Kartu sorotan: foto/video selebar kartu bersudut 28, provinsi di kiri atas, tombol suara
+ * (video) di kanan atas, tombol putar tulang, lalu di pita gelap bawah: judul, kredit, suka,
+ * dan komentar (angka 0 tidak ditulis). Satu-satunya kartu yang teksnya menumpang di atas foto
+ * (seperti desain); sisanya di bawah foto.
+ */
+function KartuSorotan({
+  berita: b,
+  tinggi,
+  putar,
+  tampilVideo,
+  bisu,
+  onBisu,
+}: {
+  berita: Berita;
+  tinggi: number;
+  putar: boolean;
+  /** Pemutar dilepas saat Beranda ditinggalkan (tab lain, detail), supaya tidak menyangga di belakang. */
+  tampilVideo: boolean;
+  bisu: boolean;
+  onBisu: () => void;
+}) {
+  const akun = useAkun();
+  const video = b.media.find((m) => m.jenis === 'video');
+  const sampul = video?.poster ?? sampulDari(b);
+  const adaVideo = video !== undefined && VideoUmpan !== null;
+  const kredit = kreditLaporan(b);
+  const disukai = akun.disukai.has(b.id);
+  const jumlahSuka = Math.max(akun.jumlahSuka.get(b.id) ?? b.jumlahSuka, disukai ? 1 : 0);
+  const tempat = b.provinsi ?? b.pulau;
+
+  function tekanSuka() {
+    if (akun.status !== 'masuk') return router.push({ pathname: '/masuk', params: { alasan: 'untuk menyukai laporan' } });
+    void aturSuka(b.id, !disukai, jumlahSuka);
+  }
+
+  return (
+    <View style={[styles.sorotan, { height: tinggi }]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Buka laporan: ${b.judul}`}
+        onPress={() => bukaLaporan(b.id)}
+        style={StyleSheet.absoluteFill}>
+        {sampul && (
+          <Image source={{ uri: urlGambar(sampul, LEBAR_LAYAR_PX) }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
+        )}
+        {/* Seperti trailer: berputar sendiri selama kartunya terlihat. */}
+        {adaVideo && VideoUmpan && tampilVideo && (
+          <Suspense fallback={null}>
+            <VideoUmpan latar uri={video.url} sampul={sampul} penuh putar={putar} bisu={bisu} />
+          </Suspense>
+        )}
+      </Pressable>
+      <View pointerEvents="none" style={styles.selubung} />
+
+      <View pointerEvents="box-none" style={styles.atasSorotan}>
+        {tempat ? (
+          <View style={styles.label}>
+            <View style={styles.titikLabel} />
+            <Text style={styles.teksLabel} numberOfLines={1}>
+              {tempat.toUpperCase()}
+            </Text>
+          </View>
+        ) : (
+          <View />
+        )}
+        {adaVideo && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={bisu ? 'Nyalakan suara video' : 'Matikan suara video'}
+            onPress={onBisu}
+            hitSlop={8}
+            style={({ pressed }) => [styles.label, styles.suara, pressed && styles.ditekan]}>
+            <Feather name={bisu ? 'volume-x' : 'volume-2'} size={14} color={TULANG} />
+          </Pressable>
+        )}
+      </View>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={video ? 'Putar video laporan' : 'Lihat foto laporan'}
+        onPress={() => bukaLaporan(b.id)}
+        style={({ pressed }) => [styles.putar, { top: Math.round(tinggi * 0.3) }, pressed && styles.ditekan]}>
+        <Ionicons name={video ? 'play' : 'images'} size={video ? 22 : 20} color={TINTA} style={video && styles.geserPutar} />
+      </Pressable>
+
+      <View pointerEvents="box-none" style={styles.bawahSorotan}>
+        <Text style={styles.judulSorotan} numberOfLines={2}>
+          {b.judul}
+        </Text>
+        <View style={styles.barisPenulis}>
+          <Text style={styles.nama} numberOfLines={1}>
+            {kredit}
+          </Text>
+          <View style={styles.fleks} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ selected: disukai }}
+            accessibilityLabel={`${disukai ? 'Batal suka' : 'Suka'}, ${jumlahSuka} suka`}
+            onPress={tekanSuka}
+            hitSlop={6}
+            style={styles.aksi}>
+            <Ionicons name={disukai ? 'heart' : 'heart-outline'} size={18} color={disukai ? SINYAL : TULANG} />
+            {jumlahSuka > 0 && <Text style={styles.teksAksi}>{hitunganTeks(jumlahSuka)}</Text>}
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Komentar, ${b.jumlahKomentar}`}
+            onPress={() => bukaKomentar(b)}
+            hitSlop={6}
+            style={styles.aksi}>
+            <Ionicons name="chatbubble-outline" size={17} color={TULANG} />
+            {b.jumlahKomentar > 0 && <Text style={styles.teksAksi}>{hitunganTeks(b.jumlahKomentar)}</Text>}
+          </Pressable>
+        </View>
+      </View>
+    </View>
+  );
+}
 
 const styles = StyleSheet.create({
   layar: {
     flex: 1,
-    backgroundColor: '#000',
   },
-  tengah: {
+  fleks: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.three,
-    paddingHorizontal: Spacing.five,
   },
-  teksTengah: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 15,
-    lineHeight: 21,
-    textAlign: 'center',
+  ditekan: {
+    opacity: 0.8,
+    transform: [{ scale: 0.97 }],
   },
-  atas: {
+  penutup: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
+  },
+  kepala: {
+    paddingHorizontal: 16,
     flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-    gap: Spacing.four,
-  },
-  tabUrutan: {
     alignItems: 'center',
-    gap: 4,
+    justifyContent: 'space-between',
+    gap: 12,
   },
-  tabTeks: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 16,
-    fontWeight: '700',
-    ...bayangan,
-  },
-  tabTeksAktif: {
-    color: '#fff',
-    fontWeight: '800',
-  },
-  garis: {
-    width: 24,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: '#fff',
-  },
-  garisMati: {
-    opacity: 0,
-  },
-  ikonAtas: {
-    position: 'absolute',
+  status: {
+    flexShrink: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingVertical: 4,
   },
-  ikonKiri: {
-    left: Spacing.three,
+  teksStatus: {
+    flexShrink: 1,
+    fontFamily: Fonts.monoTebal,
+    fontSize: 11,
+    letterSpacing: 0.9,
   },
-  ikonKanan: {
-    right: Spacing.three,
+  aksiKepala: {
+    flexDirection: 'row',
+    gap: 8,
   },
-  ikonAtasTeks: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 0.6,
-    ...bayangan,
+  h1: {
+    marginTop: 14,
+    paddingHorizontal: 20,
+    fontFamily: Fonts.judulTebal,
+    fontSize: 36,
+    letterSpacing: -0.6,
+    lineHeight: 42,
   },
-  keluarBersih: {
+  catatan: {
+    paddingTop: 6,
+    paddingHorizontal: 20,
+    fontFamily: Fonts.medium,
+    fontSize: 12.5,
+  },
+  chip: {
+    gap: 6,
+    paddingTop: 14,
+    paddingHorizontal: 16,
+  },
+  sorotan: {
+    marginTop: 12,
+    marginHorizontal: 16,
+    borderRadius: 28,
+    overflow: 'hidden',
+    backgroundColor: Media.kartu,
+  },
+  selubung: {
     position: 'absolute',
-    right: Spacing.three,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 124,
+    backgroundColor: TINTA,
+    // Lebih pekat dari desain (0,7): cap waktu & alamat yang terekam di video tidak tembus.
+    opacity: 0.93,
   },
-  tombolKeluarBersih: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.35)',
-  },
-  pemuatLokasi: {
+  atasSorotan: {
     position: 'absolute',
-    right: Spacing.five + Spacing.three,
-    bottom: 6,
-  },
-  pil: {
-    position: 'absolute',
-    alignSelf: 'center',
+    left: 16,
+    right: 16,
+    top: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 12,
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  label: {
+    flexShrink: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: Radius.pill,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 10,
+    backgroundColor: TINTA,
   },
-  pilLive: {
-    backgroundColor: Media.merah,
+  titikLabel: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: SINYAL,
   },
-  pilTeks: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '800',
+  teksLabel: {
+    flexShrink: 1,
+    color: TULANG,
+    fontFamily: Fonts.monoTebal,
+    fontSize: 11,
+    letterSpacing: 0.7,
   },
-  pesan: {
+  suara: {
+    width: 36,
+    height: 30,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    justifyContent: 'center',
+  },
+  putar: {
     position: 'absolute',
-    alignSelf: 'center',
-    top: '45%',
-    maxWidth: '80%',
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: Radius.medium,
-    backgroundColor: 'rgba(0,0,0,0.75)',
+    right: 16,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: TULANG,
   },
-  pesanTeks: {
-    color: '#fff',
-    fontSize: 14,
+  geserPutar: {
+    marginLeft: 3,
+  },
+  bawahSorotan: {
+    position: 'absolute',
+    left: 18,
+    right: 18,
+    bottom: 16,
+    gap: 8,
+  },
+  judulSorotan: {
+    color: TULANG,
+    fontFamily: Fonts.judul,
+    fontSize: 22,
+    lineHeight: 27,
+  },
+  barisPenulis: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  nama: {
+    flexShrink: 1,
+    color: TULANG,
+    fontFamily: Fonts.semibold,
+    fontSize: 13,
+  },
+  aksi: {
+    height: 32,
+    paddingHorizontal: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  teksAksi: {
+    color: TULANG,
+    fontFamily: Fonts.semibold,
+    fontSize: 13,
+  },
+  kosong: {
+    marginTop: 12,
+    marginHorizontal: 16,
+    minHeight: 260,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    paddingHorizontal: 28,
+  },
+  teksKosong: {
+    fontFamily: Fonts.regular,
+    fontSize: 13.5,
+    lineHeight: 20,
     textAlign: 'center',
+  },
+  kepalaKisi: {
+    paddingTop: 14,
+    paddingBottom: 8,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+  },
+  labelKisi: {
+    paddingVertical: 6,
+    fontFamily: Fonts.monoTebal,
+    fontSize: 11,
+    letterSpacing: 1.1,
   },
 });

@@ -3,6 +3,7 @@ import { useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
 
 import { BATAS_BERKAS, BATAS_TOTAL_BYTE, BATAS_TOTAL_TEKS, MIME_DITERIMA } from '@/lib/batas-laporan';
+import { jenisDari, type IdJenis } from '@/lib/jenis-kejadian';
 
 /** Titik laporan. `null` di draf = ikuti GPS live (lihat lokasi-live.ts). */
 export type Titik = {
@@ -30,6 +31,8 @@ export type Lampiran = {
 };
 
 export type Draf = {
+  /** Jenis kejadian dari langkah 1; hanya mengisi judul awal (lib/jenis-kejadian.ts). */
+  jenis: IdJenis | null;
   judul: string;
   deskripsi: string;
   nama: string;
@@ -41,6 +44,7 @@ export type Draf = {
 };
 
 const KOSONG: Draf = {
+  jenis: null,
   judul: '',
   deskripsi: '',
   nama: '',
@@ -94,7 +98,7 @@ function simpanSekarang() {
     const folder = folderDraf();
     const json = new File(folder, NAMA_JSON);
     const d = draf;
-    if (!d.judul && !d.deskripsi && !d.nama && d.lampiran.length === 0 && !d.titik) {
+    if (!d.jenis && !d.judul && !d.deskripsi && !d.nama && d.lampiran.length === 0 && !d.titik) {
       // Draf kosong: buang foldernya sekalian, termasuk berkas yang tadi gagal dibuang.
       if (folder.exists) folder.delete();
       return;
@@ -131,6 +135,7 @@ function pulihkan(): Draf {
     }
     const titik = j.titik?.idLampiran && !lampiran.some((l) => l.id === j.titik?.idLampiran) ? null : (j.titik ?? null);
     return {
+      jenis: jenisDari(j.jenis)?.id ?? null,
       judul: typeof j.judul === 'string' ? j.judul : '',
       deskripsi: typeof j.deskripsi === 'string' ? j.deskripsi : '',
       nama: typeof j.nama === 'string' ? j.nama : '',
@@ -169,6 +174,16 @@ export function ambilDraf(): Draf {
 
 export function ubahIsian(isian: Partial<Pick<Draf, 'judul' | 'deskripsi' | 'nama' | 'anonim'>>) {
   ubah({ ...draf, ...isian }, false);
+}
+
+/**
+ * Pilih jenis kejadian. Judul ikut diganti selama warga belum menulis judul sendiri
+ * (kosong, atau masih judul bawaan jenis sebelumnya).
+ */
+export function aturJenis(id: IdJenis) {
+  const lama = jenisDari(draf.jenis);
+  const judulBawaan = !draf.judul.trim() || draf.judul === lama?.judul;
+  ubah({ ...draf, jenis: id, judul: judulBawaan ? (jenisDari(id)?.judul ?? draf.judul) : draf.judul });
 }
 
 /** `null` = warga memilih "Ikuti GPS live": foto/video berikutnya tidak lagi mengunci titik. */

@@ -3,6 +3,7 @@ import { lazy, Suspense } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { Petunjuk } from '@/components/live/petunjuk-live';
+import { Media } from '@/constants/theme';
 import { siaranTersedia } from '@/lib/live-tersedia';
 
 // Dimuat malas: modul LiveKit langsung crash bila dievaluasi di Expo Go.
@@ -31,7 +32,7 @@ export default function LayarTonton() {
     <Suspense
       fallback={
         <View style={[styles.layar, styles.tengah]}>
-          <ActivityIndicator color="#fff" />
+          <ActivityIndicator color={Media.teks} />
         </View>
       }>
       <TontonLive
@@ -47,7 +48,7 @@ export default function LayarTonton() {
 const styles = StyleSheet.create({
   layar: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: Media.latar,
   },
   tengah: {
     alignItems: 'center',

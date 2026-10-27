@@ -1,7 +1,7 @@
 # Beranda (umpan laporan) dan peta
 
-Beranda aplikasi menampilkan laporan karhutla selayar penuh, digeser ke atas/bawah seperti
-aplikasi video pendek. Isinya **sama dengan daftar di beranda fire.nusantara.earth**.
+Beranda aplikasi menampilkan laporan karhutla sebagai kartu (foto/sampul video, judul, suka,
+komentar); mengetuk kartu membuka detail laporan. Isinya **sama dengan daftar di beranda fire.nusantara.earth**.
 
 ## Sumber data
 
@@ -54,12 +54,13 @@ alur captcha mobile di [API.md](API.md#captcha). Jawabannya juga sama: `201 { ko
 
 ## Video
 
-- Diputar dengan `expo-video`. Pemutar hanya dibuat untuk kartu yang sedang ditonton dan dua
-  tetangganya, jadi paling banyak tiga pemutar hidup sekaligus. Geser berikutnya langsung jalan,
-  tanpa memboroskan kuota.
+- Beranda hanya menampilkan sampul (poster); video diputar dengan `expo-video` di detail laporan
+  (dengan suara) dan di story. Di detail, pemutar hanya dibuat untuk media yang sedang tampil dan
+  dua tetangganya, jadi paling banyak tiga pemutar hidup; penyangga tiap pemutar dibatasi
+  (`lib/video.ts`) supaya aplikasi tidak kehabisan memori.
 - `useCaching: true`: video yang sudah ditonton tidak diunduh ulang.
-- Media mendatar (`vertikal: false`, sebagian besar laporan) tampil utuh di atas latar buram,
-  bukan dipotong. Media tegak memenuhi layar.
+- Di detail, media mendatar (`vertikal: false`, sebagian besar laporan) tampil utuh di atas latar
+  buram, bukan dipotong — bukti kejadian tidak boleh terpotong. Media tegak memenuhi area media.
 
 ## Peta
 

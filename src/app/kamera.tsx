@@ -18,7 +18,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 
 import { TitikLive } from '@/components/titik-live';
 import { Tombol } from '@/components/tombol';
-import { Fonts, Media, Radius, Spacing } from '@/constants/theme';
+import { Fonts, gradasi, Media, Spacing } from '@/constants/theme';
 import { useKini } from '@/hooks/use-kini';
 import {
   BATAS_BERKAS,
@@ -47,8 +47,6 @@ import {
   useLokasiLive,
   type PosisiLive,
 } from '@/lib/lokasi-live';
-
-const MERAH = Media.merah;
 
 /** Cadangan untuk penutup berkas MP4 saat rekaman dihentikan di batas ukuran. */
 const CADANGAN_REKAM_BYTE = 1024 * 1024;
@@ -109,7 +107,7 @@ export default function LayarKamera() {
     // Tanpa kamera warga tetap bisa melapor dengan foto/video dari galeri.
     return (
       <View style={[styles.layar, styles.izin, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-        <Ionicons name="camera-outline" size={56} color={Media.limau} />
+        <Ionicons name="camera-outline" size={44} color={Media.aksen} />
         <Text style={styles.izinJudul}>Izinkan kamera</Text>
         <Text style={styles.izinTeks}>
           Kamera dipakai untuk memotret atau merekam kejadian langsung dari lokasi sebagai bukti laporan. Bisa
@@ -122,17 +120,12 @@ export default function LayarKamera() {
           onPress={() => void (izinKamera.canAskAgain ? mintaIzinKamera() : Linking.openSettings())}
           style={styles.izinTombol}
         />
-        <Tombol
-          judul="Pilih dari galeri"
-          ikon="images-outline"
-          ragam="sekunder"
-          onPress={() => void unggah()}
-          style={styles.izinTombol}
-        />
+        {/* Layar ini selalu gelap: tombol sekunder & teks digambar sendiri, bukan mengikuti mode HP. */}
+        <TombolGaris judul="Pilih dari galeri" ikon="images-outline" onPress={() => void unggah()} />
         {alurBaru && draf.lampiran.length > 0 && (
-          <Tombol judul={`Lanjut (${draf.lampiran.length} berkas)`} ragam="teks" onPress={lanjutkan} />
+          <TombolTeks judul={`Lanjut (${draf.lampiran.length} berkas)`} onPress={lanjutkan} />
         )}
-        <Tombol judul="Kembali" ragam="teks" onPress={() => router.back()} />
+        <TombolTeks judul="Kembali" onPress={() => router.back()} />
       </View>
     );
   }
@@ -314,13 +307,13 @@ export default function LayarKamera() {
         </View>
       </GestureDetector>
 
-      {/* Kepala dari desain "Create": tutup · LAPORAN BARU · (kosong), lalu GPS & jam. */}
+      {/* Kepala: tutup · LAPORAN BARU · (kosong), lalu GPS & jam kapital kecil. */}
       <View style={[styles.atas, { paddingTop: insets.top + Spacing.two }]} pointerEvents="box-none">
         <View style={styles.barisAtas}>
           <TombolBulat ikon="close" label="Tutup kamera" onPress={tutup} />
           {merekam ? (
             <View style={[styles.pil, styles.pilRekam]}>
-              <TitikLive warna={MERAH} ukuran={7} />
+              <TitikLive warna={Media.onAksen} ukuran={7} />
               <Text style={styles.teksRekam}>
                 {durasiTeks(detikRekam)} / {durasiTeks(DURASI_VIDEO_DETIK)}
               </Text>
@@ -338,7 +331,7 @@ export default function LayarKamera() {
             accessibilityRole="button"
             hitSlop={6}
             onPress={() => void (izinMikrofon?.canAskAgain === false ? Linking.openSettings() : mintaIzinMikrofon())}>
-            <Text style={styles.jam}>
+            <Text style={styles.catatanHud}>
               Tanpa suara — ketuk untuk {izinMikrofon?.canAskAgain === false ? 'membuka Pengaturan' : 'mengizinkan mikrofon'}
             </Text>
           </Pressable>
@@ -348,15 +341,22 @@ export default function LayarKamera() {
         )}
       </View>
 
-      {/* .capture-guide: bingkai bidik + pesan keselamatan. */}
+      {/* Bingkai bidik bersudut siku seperti artboard Live, lalu pesan keselamatan. */}
       {!merekam && (
         <View pointerEvents="none" style={styles.panduan}>
-          <View style={styles.bingkai} />
+          <View style={styles.bingkai}>
+            <View style={[styles.siku, styles.sikuKiriAtas]} />
+            <View style={[styles.siku, styles.sikuKananAtas]} />
+            <View style={[styles.siku, styles.sikuKiriBawah]} />
+            <View style={[styles.siku, styles.sikuKananBawah]} />
+            <View style={styles.silangDatar} />
+            <View style={styles.silangTegak} />
+          </View>
           <Text style={styles.teksPanduan}>Jaga jarak aman. Jangan masuk area kebakaran untuk merekam.</Text>
         </View>
       )}
 
-      {/* .capture-tools: alat di sisi kanan. */}
+      {/* Alat di sisi kanan. */}
       <View style={styles.alat}>
         <TombolAlat
           ikon={lampu ? 'flash' : 'flash-outline'}
@@ -378,7 +378,7 @@ export default function LayarKamera() {
       <View style={[styles.bawah, { paddingBottom: insets.bottom + Spacing.four }]}>
         {pesan && (
           <View style={[styles.pesan, pesan.galat && styles.pesanGalat]}>
-            <Text style={styles.pesanTeks}>{pesan.teks}</Text>
+            <Text style={[styles.pesanTeks, pesan.galat && styles.pesanTeksGalat]}>{pesan.teks}</Text>
           </View>
         )}
         {sisa <= 0 && !pesan && (
@@ -394,11 +394,11 @@ export default function LayarKamera() {
             onPress={() => aturZoom(0)}
             hitSlop={8}
             style={styles.pilZoom}>
-            <Ionicons name="search" size={13} color="#fff" />
+            <Ionicons name="search" size={13} color={Media.teks} />
             <View style={styles.relZoom}>
               <View style={[styles.isiRelZoom, { width: `${Math.round(zoom * 100)}%` }]} />
             </View>
-            <Text style={styles.teksZoom}>{zoom > 0.01 ? '1×' : 'Zoom'}</Text>
+            <Text style={styles.teksZoom}>{zoom > 0.01 ? '1×' : 'ZOOM'}</Text>
           </Pressable>
         )}
 
@@ -425,7 +425,7 @@ export default function LayarKamera() {
               {terakhir?.jenis === 'foto' ? (
                 <Image source={{ uri: terakhir.uri }} style={styles.gambarGaleri} contentFit="cover" />
               ) : (
-                <Ionicons name={terakhir ? 'videocam' : 'images-outline'} size={20} color="#fff" />
+                <Ionicons name={terakhir ? 'videocam' : 'images-outline'} size={20} color={Media.teks} />
               )}
               {draf.lampiran.length > 0 && (
                 <View style={styles.hitungan}>
@@ -433,7 +433,7 @@ export default function LayarKamera() {
                 </View>
               )}
             </Pressable>
-            {!terakhir && <Text style={styles.labelSisi}>Unggah</Text>}
+            {!terakhir && <Text style={styles.labelSisi}>UNGGAH</Text>}
           </View>
 
           <Pressable
@@ -450,7 +450,7 @@ export default function LayarKamera() {
               !bisaAmbil && !merekam && styles.mati,
               pressed && { transform: [{ scale: 0.94 }] },
             ]}>
-            <View style={[styles.ranaDalam, mode === 'video' && { backgroundColor: MERAH }, merekam && styles.ranaRekam]} />
+            <View style={[styles.ranaDalam, mode === 'video' && styles.ranaVideo, merekam && styles.ranaRekam]} />
           </Pressable>
 
           <View style={styles.sisi}>
@@ -480,7 +480,7 @@ function HudLokasi({ lokasi, kini }: { lokasi: ReturnType<typeof useLokasiLive>;
   if (posisi) {
     isi = (
       <>
-        <TitikLive warna={live ? '#34c759' : '#9a9a9a'} berdenyut={live} ukuran={7} />
+        <TitikLive warna={live ? Media.aksen : Media.redup} berdenyut={live} ukuran={7} />
         <Text style={styles.hudLabel}>{live ? 'LIVE' : 'GPS'}</Text>
         <Text style={styles.hudKoordinat}>{koordinatTeks(posisi.lat, posisi.lng)}</Text>
         {posisi.akurasi != null && <Text style={styles.hudAkurasi}>±{Math.round(posisi.akurasi)} m</Text>}
@@ -495,7 +495,7 @@ function HudLokasi({ lokasi, kini }: { lokasi: ReturnType<typeof useLokasiLive>;
         onPress={() => void perbaikiLokasi()}
         hitSlop={6}
         style={styles.pil}>
-        <Ionicons name="warning" size={14} color="#ffcc00" />
+        <Ionicons name="warning" size={14} color={Media.aksen} />
         <Text style={styles.hudAkurasi}>{status === 'ditolak' ? 'Lokasi tidak diizinkan' : 'GPS mati'}</Text>
         <Text style={styles.hudAksi}>{status === 'ditolak' ? 'Izinkan' : 'Coba lagi'}</Text>
       </Pressable>
@@ -517,7 +517,36 @@ function TombolBulat({
 }) {
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} hitSlop={6} style={styles.bulat}>
-      <Ionicons name={ikon} size={22} color="#fff" />
+      <Ionicons name={ikon} size={20} color={Media.teks} />
+    </Pressable>
+  );
+}
+
+/** Pil bergaris tulang untuk layar izin yang selalu gelap (Tombol sekunder mengikuti mode HP). */
+function TombolGaris({
+  judul,
+  ikon,
+  onPress,
+}: {
+  judul: string;
+  ikon: ComponentProps<typeof Ionicons>['name'];
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [styles.garis, pressed && styles.garisDitekan]}>
+      <Ionicons name={ikon} size={18} color={Media.teks} />
+      <Text style={styles.teksGaris}>{judul}</Text>
+    </Pressable>
+  );
+}
+
+function TombolTeks({ judul, onPress }: { judul: string; onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} hitSlop={6} style={({ pressed }) => [styles.tombolTeks, pressed && styles.mati]}>
+      <Text style={styles.teksTombolTeks}>{judul}</Text>
     </Pressable>
   );
 }
@@ -535,7 +564,7 @@ function TombolAlat({
   aktif?: boolean;
   nonaktif?: boolean;
 }) {
-  const warna = aktif ? Media.limau : '#fff';
+  const warna = aktif ? Media.aksen : Media.teks;
   return (
     <Pressable
       accessibilityRole="button"
@@ -562,15 +591,18 @@ function jamTeks(ms: number): string {
 }
 
 const bayangan = {
-  textShadowColor: 'rgba(0,0,0,0.6)',
+  textShadowColor: 'rgba(12,14,13,0.7)',
   textShadowOffset: { width: 0, height: 1 },
   textShadowRadius: 3,
 } as const;
 
+/** Siku bingkai bidik: 28 px, garis tulang 2 px. */
+const SIKU = 28;
+
 const styles = StyleSheet.create({
   layar: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: Media.latar,
   },
   izin: {
     alignItems: 'center',
@@ -580,15 +612,18 @@ const styles = StyleSheet.create({
     backgroundColor: Media.latar,
   },
   izinJudul: {
-    color: '#fff',
+    color: Media.teks,
     fontFamily: Fonts.judulTebal,
-    fontSize: 22,
+    fontSize: 27,
+    letterSpacing: -0.4,
+    lineHeight: 33,
+    textAlign: 'center',
   },
   izinTeks: {
-    color: 'rgba(255,255,255,0.75)',
+    color: Media.redup,
     fontFamily: Fonts.regular,
     fontSize: 15,
-    lineHeight: 21,
+    lineHeight: 22,
     textAlign: 'center',
   },
   izinTombol: {
@@ -596,9 +631,38 @@ const styles = StyleSheet.create({
     marginTop: Spacing.two,
   },
   izinGalat: {
-    color: '#ff8a80',
+    color: Media.aksen,
   },
-  // .capture-shade: gelap di atas & bawah supaya kontrol terbaca.
+  garis: {
+    alignSelf: 'stretch',
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.two,
+    borderWidth: 1,
+    borderColor: Media.garis,
+    borderRadius: 26,
+  },
+  garisDitekan: {
+    backgroundColor: 'rgba(237,232,223,0.08)',
+  },
+  teksGaris: {
+    color: Media.teks,
+    fontFamily: Fonts.tebal,
+    fontSize: 15,
+  },
+  tombolTeks: {
+    minHeight: 44,
+    paddingHorizontal: Spacing.three,
+    justifyContent: 'center',
+  },
+  teksTombolTeks: {
+    color: Media.redup,
+    fontFamily: Fonts.bold,
+    fontSize: 14,
+  },
+  // Selubung tinta di atas & bawah supaya kontrol terbaca di atas gambar kamera.
   atas: {
     position: 'absolute',
     top: 0,
@@ -608,7 +672,7 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.four,
     alignItems: 'center',
     gap: Spacing.two,
-    experimental_backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.45), rgba(0,0,0,0))',
+    ...gradasi('linear-gradient(to bottom, rgba(12,14,13,0.55), rgba(12,14,13,0))'),
   },
   barisAtas: {
     alignSelf: 'stretch',
@@ -617,69 +681,78 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   pengisi: {
-    width: 40,
+    width: 44,
   },
   judulKepala: {
-    color: '#fff',
-    fontFamily: Fonts.judulTebal,
-    fontSize: 12,
-    letterSpacing: 1.8,
+    color: Media.teks,
+    fontFamily: Fonts.monoTebal,
+    fontSize: 11,
+    letterSpacing: 0.9,
   },
   bulat: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Media.kaca,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Label tinta pekat bersudut 10, seperti label di atas foto pada desain.
   pil: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     paddingLeft: 6,
     paddingRight: 12,
-    paddingVertical: 5,
-    borderRadius: Radius.pill,
-    backgroundColor: Media.kacaTebal,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: Media.kaca,
   },
+  // Sedang merekam: label sinyal bertulisan tinta, seperti lencana LIVE.
   pilRekam: {
-    backgroundColor: 'rgba(0,0,0,0.65)',
+    backgroundColor: Media.aksen,
   },
   hudLabel: {
-    color: '#fff',
-    fontFamily: Fonts.judulTebal,
+    color: Media.teks,
+    fontFamily: Fonts.monoTebal,
     fontSize: 11,
     letterSpacing: 0.8,
   },
   hudKoordinat: {
-    color: '#fff',
+    color: Media.teks,
     fontFamily: Fonts.mono,
-    fontSize: 12.5,
-    fontVariant: ['tabular-nums'],
+    fontSize: 12,
   },
   hudAkurasi: {
-    color: 'rgba(255,255,255,0.8)',
-    fontFamily: Fonts.regular,
-    fontSize: 12,
+    color: Media.redup,
+    fontFamily: Fonts.mono,
+    fontSize: 11,
   },
   hudAksi: {
-    color: Media.limau,
-    fontFamily: Fonts.bold,
-    fontSize: 12,
+    color: Media.aksen,
+    fontFamily: Fonts.monoTebal,
+    fontSize: 11,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
   },
   jam: {
-    color: '#fff',
+    color: Media.teks,
+    fontFamily: Fonts.mono,
+    fontSize: 11,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    ...bayangan,
+  },
+  catatanHud: {
+    color: Media.teks,
     fontFamily: Fonts.medium,
     fontSize: 12.5,
-    fontVariant: ['tabular-nums'],
     ...bayangan,
   },
   teksRekam: {
-    color: '#fff',
-    fontFamily: Fonts.bold,
+    color: Media.onAksen,
+    fontFamily: Fonts.monoTebal,
     fontSize: 13,
-    fontVariant: ['tabular-nums'],
   },
   panduan: {
     position: 'absolute',
@@ -691,13 +764,62 @@ const styles = StyleSheet.create({
   bingkai: {
     alignSelf: 'stretch',
     height: 180,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.4)',
-    borderRadius: 22,
+  },
+  siku: {
+    position: 'absolute',
+    width: SIKU,
+    height: SIKU,
+    borderColor: Media.teks,
+  },
+  sikuKiriAtas: {
+    left: 0,
+    top: 0,
+    borderLeftWidth: 2,
+    borderTopWidth: 2,
+  },
+  sikuKananAtas: {
+    right: 0,
+    top: 0,
+    borderRightWidth: 2,
+    borderTopWidth: 2,
+  },
+  sikuKiriBawah: {
+    left: 0,
+    bottom: 0,
+    borderLeftWidth: 2,
+    borderBottomWidth: 2,
+  },
+  sikuKananBawah: {
+    right: 0,
+    bottom: 0,
+    borderRightWidth: 2,
+    borderBottomWidth: 2,
+  },
+  silangDatar: {
+    position: 'absolute',
+    left: '50%',
+    top: '50%',
+    width: 22,
+    height: 2,
+    marginLeft: -11,
+    marginTop: -1,
+    backgroundColor: Media.teks,
+    opacity: 0.7,
+  },
+  silangTegak: {
+    position: 'absolute',
+    left: '50%',
+    top: '50%',
+    width: 2,
+    height: 22,
+    marginLeft: -1,
+    marginTop: -11,
+    backgroundColor: Media.teks,
+    opacity: 0.7,
   },
   teksPanduan: {
-    marginTop: 12,
-    color: '#fff',
+    marginTop: 14,
+    color: Media.teks,
     fontFamily: Fonts.medium,
     fontSize: 12.5,
     lineHeight: 18,
@@ -712,16 +834,18 @@ const styles = StyleSheet.create({
   },
   tombolAlat: {
     alignItems: 'center',
-    gap: 3,
+    gap: 4,
   },
   bayangIkon: {
-    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowColor: 'rgba(12,14,13,0.7)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
   labelAlat: {
-    fontFamily: Fonts.semibold,
-    fontSize: 10.5,
+    fontFamily: Fonts.monoTebal,
+    fontSize: 9.5,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
     ...bayangan,
   },
   bawah: {
@@ -731,24 +855,28 @@ const styles = StyleSheet.create({
     bottom: 0,
     paddingTop: Spacing.five,
     gap: Spacing.three,
-    experimental_backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,0.7))',
+    ...gradasi('linear-gradient(to bottom, rgba(12,14,13,0), rgba(12,14,13,0.75))'),
   },
   pesan: {
     alignSelf: 'center',
     maxWidth: '86%',
     paddingHorizontal: 14,
     paddingVertical: 9,
-    borderRadius: Radius.pill,
-    backgroundColor: '#29332d',
+    borderRadius: 18,
+    backgroundColor: Media.kacaTebal,
   },
   pesanGalat: {
-    backgroundColor: 'rgba(200,65,53,0.95)',
+    backgroundColor: Media.aksen,
   },
   pesanTeks: {
-    color: '#eff6eb',
+    color: Media.teks,
     fontFamily: Fonts.medium,
     fontSize: 13,
     textAlign: 'center',
+  },
+  pesanTeksGalat: {
+    color: Media.onAksen,
+    fontFamily: Fonts.semibold,
   },
   pilZoom: {
     alignSelf: 'center',
@@ -756,27 +884,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: Radius.pill,
-    backgroundColor: Media.kacaTebal,
+    paddingVertical: 7,
+    borderRadius: 18,
+    backgroundColor: Media.kaca,
   },
   relZoom: {
     width: 90,
-    height: 4,
+    height: 3,
     borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.3)',
+    backgroundColor: Media.garis,
     overflow: 'hidden',
   },
   isiRelZoom: {
     height: '100%',
-    backgroundColor: Media.limau,
+    backgroundColor: Media.aksen,
   },
   teksZoom: {
-    color: '#fff',
-    fontFamily: Fonts.bold,
-    fontSize: 12,
+    color: Media.teks,
+    fontFamily: Fonts.monoTebal,
+    fontSize: 11,
+    letterSpacing: 0.6,
   },
-  // .capture-modes: LIVE · FOTO · VIDEO, terpilih putih + titik limau.
+  // LIVE · FOTO · VIDEO kapital kecil, terpilih tulang + titik sinyal.
   pilihMode: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -784,24 +913,24 @@ const styles = StyleSheet.create({
   },
   tombolMode: {
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
     paddingVertical: 4,
   },
   mode: {
-    color: 'rgba(255,255,255,0.6)',
-    fontFamily: Fonts.judul,
+    color: Media.redup,
+    fontFamily: Fonts.monoTebal,
     fontSize: 12,
-    letterSpacing: 1.2,
+    letterSpacing: 1,
     ...bayangan,
   },
   modeAktif: {
-    color: '#fff',
+    color: Media.teks,
   },
   titikMode: {
-    width: 5,
-    height: 5,
+    width: 6,
+    height: 6,
     borderRadius: 3,
-    backgroundColor: Media.limau,
+    backgroundColor: Media.aksen,
   },
   tersembunyi: {
     opacity: 0,
@@ -813,53 +942,54 @@ const styles = StyleSheet.create({
   sisi: {
     flex: 1,
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
   },
   galeri: {
-    width: 46,
-    height: 46,
+    width: 48,
+    height: 48,
     padding: 3,
     borderWidth: 1,
-    borderColor: '#fff',
-    borderRadius: 12,
+    borderColor: Media.teks,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
   gambarGaleri: {
     width: '100%',
     height: '100%',
-    borderRadius: 8,
+    borderRadius: 10,
   },
   labelSisi: {
-    color: '#fff',
-    fontFamily: Fonts.semibold,
-    fontSize: 11,
+    color: Media.teks,
+    fontFamily: Fonts.monoTebal,
+    fontSize: 9.5,
+    letterSpacing: 0.6,
     ...bayangan,
   },
   hitungan: {
     position: 'absolute',
     top: -6,
     right: -6,
-    minWidth: 19,
-    height: 19,
+    minWidth: 20,
+    height: 20,
     borderRadius: 10,
     paddingHorizontal: 4,
-    backgroundColor: Media.limau,
+    backgroundColor: Media.aksen,
     alignItems: 'center',
     justifyContent: 'center',
   },
   hitunganTeks: {
-    color: Media.onLimau,
-    fontFamily: Fonts.judulTebal,
-    fontSize: 11,
+    color: Media.onAksen,
+    fontFamily: Fonts.monoTebal,
+    fontSize: 10.5,
   },
-  // .shutter: cincin putih, isi limau (video: merah; merekam: kotak merah).
+  // Rana: cincin tulang; isi tulang untuk foto, sinyal untuk video; kotak sinyal saat merekam.
   rana: {
     width: 76,
     height: 76,
     borderRadius: 38,
     borderWidth: 3,
-    borderColor: '#fff',
+    borderColor: Media.teks,
     padding: 5,
     alignItems: 'center',
     justifyContent: 'center',
@@ -868,7 +998,10 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: 33,
-    backgroundColor: Media.limau,
+    backgroundColor: Media.teks,
+  },
+  ranaVideo: {
+    backgroundColor: Media.aksen,
   },
   ranaRekam: {
     width: 30,
@@ -880,21 +1013,22 @@ const styles = StyleSheet.create({
   },
   lanjut: {
     paddingHorizontal: 18,
-    height: 40,
-    borderRadius: Radius.medium,
-    backgroundColor: Media.limau,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Media.aksen,
     alignItems: 'center',
     justifyContent: 'center',
   },
   teksLanjut: {
-    color: Media.onLimau,
+    color: Media.onAksen,
     fontFamily: Fonts.judulTebal,
-    fontSize: 14,
+    fontSize: 15,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
   },
   durasi: {
-    color: 'rgba(255,255,255,0.7)',
-    fontFamily: Fonts.medium,
-    fontSize: 12.5,
-    fontVariant: ['tabular-nums'],
+    color: Media.redup,
+    fontFamily: Fonts.mono,
+    fontSize: 12,
   },
 });

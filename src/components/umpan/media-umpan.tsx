@@ -1,20 +1,20 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { requireOptionalNativeModule } from 'expo';
 import { Image } from 'expo-image';
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useCallback, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import type { KendaliVideo } from '@/components/umpan/video-umpan';
-import { Fonts } from '@/constants/theme';
+import type { KendaliVideo, StatusPutar } from '@/components/umpan/video-umpan';
+import { Fonts, Media } from '@/constants/theme';
 import { LEBAR_LAYAR_PX, urlGambar, type ItemMedia } from '@/lib/umpan';
 
 // Development build yang dibuat sebelum expo-video dipasang tidak punya modul
 // native-nya, dan mengimpor expo-video di sana langsung crash. Jadi pemutar
 // dimuat malas hanya bila modulnya ada; tanpa itu video tampil sebagai sampul.
-const VideoUmpan = requireOptionalNativeModule('ExpoVideo')
+export const VideoUmpan = requireOptionalNativeModule('ExpoVideo')
   ? lazy(() => import('@/components/umpan/video-umpan'))
   : null;
 
@@ -34,8 +34,19 @@ type Props = {
   onKetukGanda: (x: number, y: number) => void;
   /** Mulai/selesai dicubit — umpan berhenti bisa digeser selama zoom. */
   onZoom: (aktif: boolean) => void;
-  /** Tekan lama — menyalakan/mematikan mode bersih. */
+  /** Tekan lama — menu aksi laporan. */
   onTekanLama: () => void;
+  /** Media mendatar di atas latar buram dari gambarnya sendiri (bawaan), atau di atas hitam polos. */
+  latarBuram?: boolean;
+  /** Rasio lebar/tinggi sampul setelah termuat — supaya wadahnya bisa mengikuti bentuk foto. */
+  onRasio?: (rasio: number) => void;
+  /**
+   * Kontrol video digambar pemanggil (detail laporan, gaya Netflix): ketuk sekali memanggil
+   * `onKetuk` alih-alih jeda/putar, dan kendali & posisi putar diteruskan ke luar.
+   */
+  onKetuk?: () => void;
+  onKendali?: (kendali: KendaliVideo | null) => void;
+  onPutaran?: (status: StatusPutar) => void;
 };
 
 /**
@@ -45,9 +56,31 @@ type Props = {
  * dilepas), ketuk ganda = suka, ketuk sekali = jeda/putar video, tekan lama =
  * mode bersih.
  */
-export function MediaUmpan({ media, penuh, putar, siapkan, bisu, onKetukGanda, onZoom, onTekanLama }: Props) {
+export function MediaUmpan({
+  media,
+  penuh,
+  putar,
+  siapkan,
+  bisu,
+  onKetukGanda,
+  onZoom,
+  onTekanLama,
+  latarBuram = true,
+  onRasio,
+  onKetuk,
+  onKendali,
+  onPutaran,
+}: Props) {
   const sampul = media.jenis === 'video' ? media.poster : media.url;
   const [kendali, setKendali] = useState<KendaliVideo | null>(null);
+  const kontrolLuar = onKetuk !== undefined;
+  const terimaKendali = useCallback(
+    (k: KendaliVideo | null) => {
+      setKendali(k);
+      onKendali?.(k);
+    },
+    [onKendali],
+  );
   // Foto yang gagal dimuat (CDN galat, sinyal putus): tanda + ketuk untuk coba lagi, bukan kartu hitam polos.
   const [gagal, setGagal] = useState<string | null>(null);
   const [percobaan, setPercobaan] = useState(0);
@@ -92,7 +125,8 @@ export function MediaUmpan({ media, penuh, putar, siapkan, bisu, onKetukGanda, o
         // Key baru memasang ulang Image, jadi gambar diminta lagi.
         setGagal(null);
         setPercobaan((n) => n + 1);
-      } else kendali?.ketuk();
+      } else if (onKetuk) onKetuk();
+      else kendali?.ketuk();
     });
 
   const tekanLama = Gesture.LongPress()
@@ -117,11 +151,14 @@ export function MediaUmpan({ media, penuh, putar, siapkan, bisu, onKetukGanda, o
       style={StyleSheet.absoluteFill}
       contentFit={penuh ? 'cover' : 'contain'}
       transition={150}
+      onLoad={(e) => {
+        if (e.source.width > 0 && e.source.height > 0) onRasio?.(e.source.width / e.source.height);
+      }}
       onError={() => setGagal(sampul)}
     />
   ) : (
     <View style={styles.tengah}>
-      <Ionicons name="flame-outline" size={48} color="rgba(255,255,255,0.4)" />
+      <Ionicons name="flame-outline" size={48} color={Media.garis} />
     </View>
   );
 
@@ -133,7 +170,7 @@ export function MediaUmpan({ media, penuh, putar, siapkan, bisu, onKetukGanda, o
           lebar.value = e.nativeEvent.layout.width;
           tinggi.value = e.nativeEvent.layout.height;
         }}>
-        {!penuh && sampul && (
+        {!penuh && latarBuram && sampul && (
           <>
             {/* Latar buram dari gambar 64 px: memburamkan foto selayar penuh terlalu berat saat digeser. */}
             <Image source={{ uri: urlGambar(sampul, 64) }} style={StyleSheet.absoluteFill} contentFit="cover" blurRadius={4} />
@@ -144,7 +181,16 @@ export function MediaUmpan({ media, penuh, putar, siapkan, bisu, onKetukGanda, o
         <Animated.View style={[StyleSheet.absoluteFill, gayaZoom]}>
           {media.jenis === 'video' && siapkan && VideoUmpan ? (
             <Suspense fallback={gambarSampul}>
-              <VideoUmpan onKendali={setKendali} uri={media.url} sampul={sampul} penuh={penuh} putar={putar} bisu={bisu} />
+              <VideoUmpan
+                onKendali={terimaKendali}
+                onPutaran={onPutaran}
+                kontrolLuar={kontrolLuar}
+                uri={media.url}
+                sampul={sampul}
+                penuh={penuh}
+                putar={putar}
+                bisu={bisu}
+              />
             </Suspense>
           ) : (
             gambarSampul
@@ -154,7 +200,7 @@ export function MediaUmpan({ media, penuh, putar, siapkan, bisu, onKetukGanda, o
         {gambarGagal && (
           <View style={styles.tengah} pointerEvents="none">
             <View style={styles.pilBuild}>
-              <Ionicons name="image-outline" size={16} color="#fff" />
+              <Ionicons name="image-outline" size={16} color={Media.teks} />
               <Text style={styles.teksBuild}>Gambar gagal dimuat · ketuk untuk coba lagi</Text>
             </View>
           </View>
@@ -163,7 +209,7 @@ export function MediaUmpan({ media, penuh, putar, siapkan, bisu, onKetukGanda, o
         {media.jenis === 'video' && !VideoUmpan && (
           <View style={styles.tengah} pointerEvents="none">
             <View style={styles.pilBuild}>
-              <Ionicons name="videocam-off-outline" size={16} color="#fff" />
+              <Ionicons name="videocam-off-outline" size={16} color={Media.teks} />
               <Text style={styles.teksBuild}>Video butuh versi aplikasi terbaru</Text>
             </View>
           </View>
@@ -176,11 +222,11 @@ export function MediaUmpan({ media, penuh, putar, siapkan, bisu, onKetukGanda, o
 const styles = StyleSheet.create({
   wadah: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: '#000',
+    backgroundColor: Media.latar,
     overflow: 'hidden',
   },
   redup: {
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: 'rgba(12,14,13,0.35)',
   },
   tengah: {
     ...StyleSheet.absoluteFill,
@@ -194,10 +240,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 999,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: Media.pil,
   },
   teksBuild: {
-    color: '#fff',
+    color: Media.teks,
     fontSize: 13,
     fontFamily: Fonts.semibold,
   },

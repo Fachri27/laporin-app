@@ -4,7 +4,7 @@ import { lazy, Suspense, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Tombol } from '@/components/tombol';
-import { Fonts, Radius, Spacing } from '@/constants/theme';
+import { Fonts, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 import { adaApple, bisaMasukUji, halanganGoogle, masukApple, masukGoogle, masukUji } from '@/lib/akun';
@@ -17,7 +17,7 @@ const TombolApple = adaApple
           <m.AppleAuthenticationButton
             buttonType={m.AppleAuthenticationButtonType.CONTINUE}
             buttonStyle={p.gelap ? m.AppleAuthenticationButtonStyle.WHITE : m.AppleAuthenticationButtonStyle.BLACK}
-            cornerRadius={Radius.medium}
+            cornerRadius={26}
             style={styles.tombolApple}
             onPress={p.onPress}
           />
@@ -32,7 +32,11 @@ type Props = {
   onBerhasil?: () => void;
 };
 
-/** Pilihan masuk: Apple (iOS), Google, plus "masuk uji" saat memakai dev server. */
+/**
+ * Pilihan masuk: Apple (iOS), Google, plus "masuk uji" saat memakai dev server. Rata kiri seperti
+ * lembar lain: label kapital kecil, judul huruf judul, tombol pil. Tanpa latar sendiri:
+ * dipasang di lembar masuk dan di panel Profil, keduanya berlatar `surface`.
+ */
 export function PanelMasuk({ alasan, onBerhasil }: Props) {
   const w = useTheme();
   const gelap = useColorScheme() === 'dark';
@@ -52,10 +56,11 @@ export function PanelMasuk({ alasan, onBerhasil }: Props) {
 
   return (
     <View style={styles.wadah}>
-      <View style={[styles.ikon, { backgroundColor: w.accentSoft }]}>
-        <Ionicons name="shield-checkmark-outline" size={38} color={w.accentText} />
-      </View>
-      <Text style={[styles.judul, { color: w.text }]}>Masuk ke Lapor Karhutla</Text>
+      <Text style={[styles.label, { color: w.textSecondary }]}>AKUN WARGA</Text>
+      <Text accessibilityRole="header" style={[styles.judul, { color: w.text }]}>
+        Masuk ke{'\n'}
+        <Text style={{ color: w.accentText }}>Laporin.</Text>
+      </Text>
       <Text style={[styles.teks, { color: w.textSecondary }]}>
         {alasan ? `Masuk ${alasan}. ` : ''}Simpan riwayat laporan, sukai, dan komentari laporan warga. Melapor tetap
         bisa tanpa akun.
@@ -71,27 +76,30 @@ export function PanelMasuk({ alasan, onBerhasil }: Props) {
         </Suspense>
       )}
 
+      {/* Pil terang: tulang di mode gelap, tinta di mode terang — sepasang dengan tombol Apple. */}
       <Pressable
         accessibilityRole="button"
+        accessibilityState={{ disabled: proses !== null || halanganGoogle !== null, busy: proses === 'google' }}
         disabled={proses !== null || halanganGoogle !== null}
         onPress={() => void jalankan('google')}
         style={({ pressed }) => [
           styles.tombolGoogle,
-          { borderColor: w.border, backgroundColor: pressed ? w.surfaceMuted : w.surface },
+          { backgroundColor: w.tombolTerang },
+          pressed && styles.ditekan,
           halanganGoogle !== null && styles.mati,
         ]}>
         {proses === 'google' ? (
-          <ActivityIndicator color={w.text} />
+          <ActivityIndicator color={w.onTombolTerang} />
         ) : (
-          <Ionicons name="logo-google" size={20} color={w.text} />
+          <Ionicons name="logo-google" size={19} color={w.onTombolTerang} />
         )}
-        <Text style={[styles.teksGoogle, { color: w.text }]}>Lanjutkan dengan Google</Text>
+        <Text style={[styles.teksGoogle, { color: w.onTombolTerang }]}>Lanjutkan dengan Google</Text>
       </Pressable>
       {halanganGoogle && <Text style={[styles.catatan, { color: w.textSecondary }]}>{halanganGoogle}</Text>}
 
       {bisaMasukUji && (
-        <View style={[styles.uji, { borderColor: w.border }]}>
-          <Text style={[styles.labelUji, { color: w.textSecondary }]}>UJI DENGAN MOCK SERVER · TANPA GOOGLE</Text>
+        <View style={[styles.uji, { backgroundColor: w.surfaceMuted }]}>
+          <Text style={[styles.label, { color: w.textSecondary }]}>LOGIN UJI (PENGEMBANGAN) · TANPA GOOGLE</Text>
           <View style={styles.barisUji}>
             <TextInput
               value={namaUji}
@@ -99,7 +107,8 @@ export function PanelMasuk({ alasan, onBerhasil }: Props) {
               placeholder="Nama penguji"
               placeholderTextColor={w.textSecondary}
               maxLength={100}
-              style={[styles.inputUji, { color: w.text, borderColor: w.border, backgroundColor: w.background }]}
+              style={[styles.inputUji, { color: w.text, borderColor: w.border, backgroundColor: w.surface }]}
+              accessibilityLabel="Nama penguji"
             />
             <Tombol
               judul="Masuk uji"
@@ -131,42 +140,41 @@ export function PanelMasuk({ alasan, onBerhasil }: Props) {
 
 const styles = StyleSheet.create({
   wadah: {
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingHorizontal: Spacing.four,
+    gap: 14,
+    paddingHorizontal: Spacing.four - 2,
   },
-  ikon: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    alignItems: 'center',
-    justifyContent: 'center',
+  label: {
+    fontFamily: Fonts.monoTebal,
+    fontSize: 11,
+    letterSpacing: 0.9,
   },
   judul: {
+    marginTop: -6,
     fontFamily: Fonts.judulTebal,
-    fontSize: 22,
-    letterSpacing: -0.5,
-    textAlign: 'center',
+    fontSize: 30,
+    letterSpacing: -0.4,
+    lineHeight: 37,
+    paddingTop: 4,
   },
   teks: {
     fontFamily: Fonts.regular,
-    fontSize: 14.5,
+    fontSize: 14,
     lineHeight: 21,
-    textAlign: 'center',
   },
   tombolGoogle: {
-    alignSelf: 'stretch',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.two + 2,
+    gap: 10,
     minHeight: 52,
-    borderRadius: Radius.medium,
-    borderWidth: 1,
+    borderRadius: 26,
     marginTop: Spacing.two,
   },
+  ditekan: {
+    opacity: 0.85,
+    transform: [{ scale: 0.98 }],
+  },
   tombolApple: {
-    alignSelf: 'stretch',
     height: 52,
     marginTop: Spacing.two,
   },
@@ -174,30 +182,21 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.semibold,
   },
   teksGoogle: {
-    fontFamily: Fonts.bold,
-    fontSize: 15.5,
+    fontFamily: Fonts.tebal,
+    fontSize: 15,
   },
   mati: {
     opacity: 0.5,
   },
   catatan: {
     fontFamily: Fonts.regular,
-    fontSize: 12.5,
+    fontSize: 12,
     lineHeight: 17,
-    textAlign: 'center',
   },
   uji: {
-    alignSelf: 'stretch',
-    gap: Spacing.two,
-    padding: Spacing.three,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderRadius: Radius.medium,
-  },
-  labelUji: {
-    fontFamily: Fonts.judulTebal,
-    fontSize: 10.5,
-    letterSpacing: 1,
+    gap: 10,
+    padding: 14,
+    borderRadius: 20,
   },
   barisUji: {
     flexDirection: 'row',
@@ -206,17 +205,16 @@ const styles = StyleSheet.create({
   },
   inputUji: {
     flex: 1,
-    height: 44,
+    height: 48,
     borderWidth: 1,
-    borderRadius: Radius.small,
-    paddingHorizontal: 12,
+    borderRadius: 24,
+    paddingHorizontal: 16,
     fontFamily: Fonts.regular,
-    fontSize: 15,
+    fontSize: 14,
   },
   galat: {
     fontFamily: Fonts.medium,
-    fontSize: 13.5,
+    fontSize: 13,
     lineHeight: 19,
-    textAlign: 'center',
   },
 });

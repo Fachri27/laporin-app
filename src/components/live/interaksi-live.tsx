@@ -1,10 +1,21 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useLocalParticipant, useRoomContext } from '@livekit/react-native';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Easing, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { useCallback, useEffect, useRef, useState, type ComponentProps } from 'react';
+import {
+  AccessibilityInfo,
+  Alert,
+  Animated,
+  Easing,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 
-import { Fonts, Media, Radius, Spacing } from '@/constants/theme';
+import { Fonts, gradasi, Media, SINYAL, Spacing, TINTA, TULANG } from '@/constants/theme';
 import { blokirPenulis, useBlokir } from '@/lib/blokir';
 import {
   bacaHadiah,
@@ -43,7 +54,7 @@ export type Kiriman = { kunci: string; nama: string; peran: Peran | null; hadiah
 /** Antrean animasi selayar penuh untuk hadiah besar, diputar satu per satu. */
 export type Sorotan = { id: number; nama: string; hadiah: Hadiah; jumlah: number };
 
-const WARNA_HATI = [Media.limau, '#ff2d55', '#ffcc00', Media.limau, '#ff9500'];
+const WARNA_HATI = [SINYAL, TULANG, Media.oranye, SINYAL, Media.namaObrolan];
 /** Ketukan beruntun dikirim sekaligus — 20 ketukan per detik tidak perlu jadi 20 pesan. */
 const JEDA_GABUNG_SUKA_MS = 400;
 const MAKS_HATI = 30;
@@ -57,9 +68,11 @@ const DURASI_SOROTAN_MS = 2800;
 const MAKS_KOMENTAR_PER_JENDELA = 3;
 const JENDELA_LAJU_MS = 10_000;
 
-/** Lencana peran di komentar & spanduk; warga tanpa lencana. */
+/** Penanda peran di belakang nama ("BUDI · PELAPOR"); warga tanpa penanda. */
 const LENCANA_PERAN: Partial<Record<Peran, string>> = { petugas: 'Petugas', pelapor: 'Pelapor' };
 const NAMA_PERAN: Record<Peran, string> = { petugas: 'Petugas', pelapor: 'Pelapor', warga: 'Warga' };
+/** Warna nama kapital kecil: petugas sinyal, pelapor (pembawa siaran) & komentar sendiri tulang, warga tulang redup. */
+const WARNA_NAMA: Record<Peran, string> = { petugas: SINYAL, pelapor: TULANG, warga: 'rgba(237,232,223,0.7)' };
 
 let nomorHati = 0;
 let nomorSorotan = 0;
@@ -297,12 +310,7 @@ function SpandukKiriman({ kiriman: k, onSelesai }: { kiriman: Kiriman; onSelesai
         <Text style={styles.inisialKiriman}>{(k.nama.trim()[0] ?? 'P').toUpperCase()}</Text>
       </View>
       <View style={styles.teksSpanduk}>
-        <View style={styles.barisNama}>
-          <Lencana peran={k.peran} />
-          <Text style={styles.namaKiriman} numberOfLines={1}>
-            {k.nama}
-          </Text>
-        </View>
+        <NamaPeserta nama={k.nama} peran={k.peran} />
         <Text style={styles.ketKiriman} numberOfLines={1}>
           mengirim {k.hadiah.nama}
         </Text>
@@ -395,14 +403,120 @@ function AnimasiSorotan({ sorotan: s, onSelesai }: { sorotan: Sorotan; onSelesai
   );
 }
 
-/** Lencana peran dari identitas server, supaya nama akun tidak bisa menyamar sebagai petugas. */
-function Lencana({ peran }: { peran: Peran | null }) {
+/**
+ * Nama berkapital kecil dengan penanda peran dari identitas server ("BUDI · PELAPOR"), supaya
+ * nama akun tidak bisa menyamar sebagai petugas. `peran` null = komentar sendiri.
+ */
+function NamaPeserta({ nama, peran }: { nama: string; peran: Peran | null }) {
   const label = peran ? LENCANA_PERAN[peran] : undefined;
-  if (!label) return null;
   return (
-    <View style={[styles.lencana, peran === 'petugas' ? styles.lencanaPetugas : styles.lencanaPelapor]}>
-      <Text style={[styles.teksLencana, peran === 'petugas' && styles.teksLencanaPetugas]}>{label}</Text>
+    <Text style={[styles.nama, { color: peran ? WARNA_NAMA[peran] : TULANG }]} numberOfLines={1}>
+      {nama.toUpperCase()}
+      {label && ` · ${label.toUpperCase()}`}
+    </Text>
+  );
+}
+
+/**
+ * Lencana "● LIVE" di kepala siaran: huruf judul di atas sinyal, titik tinta berkedip.
+ * Belum tersambung = "MENGHUBUNGKAN" di atas tinta, tanpa titik.
+ */
+export function LencanaLive({ tersambung }: { tersambung: boolean }) {
+  const [kedip] = useState(() => new Animated.Value(1));
+
+  useEffect(() => {
+    if (!tersambung) return;
+    let putaran: Animated.CompositeAnimation | null = null;
+    let batal = false;
+    // Gerak dikurangi (pengaturan aksesibilitas HP): titik diam saja.
+    void AccessibilityInfo.isReduceMotionEnabled().then((kurangi) => {
+      if (batal || kurangi) return;
+      putaran = Animated.loop(
+        Animated.sequence([
+          Animated.timing(kedip, { toValue: 0.15, duration: 0, delay: 600, useNativeDriver: true }),
+          Animated.timing(kedip, { toValue: 1, duration: 0, delay: 600, useNativeDriver: true }),
+        ]),
+      );
+      putaran.start();
+    });
+    return () => {
+      batal = true;
+      putaran?.stop();
+      kedip.setValue(1);
+    };
+  }, [tersambung, kedip]);
+
+  return (
+    <View style={[styles.lencanaLive, !tersambung && styles.lencanaMenunggu]}>
+      {tersambung && <Animated.View style={[styles.titikLive, { opacity: kedip }]} />}
+      <Text style={[styles.teksLencanaLive, !tersambung && styles.teksMenunggu]} maxFontSizeMultiplier={1.2}>
+        {tersambung ? 'LIVE' : 'MENGHUBUNGKAN'}
+      </Text>
     </View>
+  );
+}
+
+/**
+ * Pil kecil kapital di kepala siaran (durasi, penonton, kualitas sinyal). Tanpa `teks` = ikon saja;
+ * `label` lalu dibacakan pembaca layar.
+ */
+export function PilLive({
+  ikon,
+  warnaIkon = TULANG,
+  teks,
+  label,
+  besar = false,
+}: {
+  ikon?: ComponentProps<typeof Ionicons>['name'];
+  warnaIkon?: string;
+  teks?: string;
+  label?: string;
+  /** Durasi: angka sedikit lebih besar, seperti desain. */
+  besar?: boolean;
+}) {
+  return (
+    <View accessible={!!label} accessibilityLabel={label} style={[styles.pilLive, !teks && styles.pilIkon]}>
+      {ikon && <Ionicons name={ikon} size={14} color={warnaIkon} />}
+      {teks !== undefined && (
+        <Text style={[styles.teksPilLive, besar && styles.teksPilBesar]} maxFontSizeMultiplier={1.2}>
+          {teks}
+        </Text>
+      )}
+    </View>
+  );
+}
+
+/**
+ * Tombol bulat 52 di kolom samping video (hati, hadiah, laporkan): tinta pekat bergaris tulang
+ * tipis. `angka` = hitungan kecil di bawah ikon (mis. jumlah hati selama siaran).
+ */
+export function TombolSamping({
+  ikon,
+  warna = TULANG,
+  label,
+  onPress,
+  angka,
+}: {
+  ikon: ComponentProps<typeof Ionicons>['name'];
+  warna?: string;
+  label: string;
+  onPress: () => void;
+  angka?: number;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={angka ? `${label}, ${angka}` : label}
+      onPress={onPress}
+      hitSlop={4}
+      style={({ pressed }) => [styles.tombolSamping, pressed && styles.ditekan]}>
+      <Ionicons name={ikon} size={angka ? 19 : 21} color={warna} />
+      {angka !== undefined && angka > 0 && (
+        <Text style={styles.angkaSamping} maxFontSizeMultiplier={1.1}>
+          {angka > 999 ? `${Math.floor(angka / 100) / 10}rb` : angka}
+        </Text>
+      )}
+    </Pressable>
   );
 }
 
@@ -441,7 +555,7 @@ export function menuKomentarLive(k: Komentar, ruang: string | null) {
   ]);
 }
 
-/** Komentar terakhir di kiri bawah video; yang lebih lama memudar. */
+/** Komentar terakhir di kiri bawah video, tanpa gelembung (nama kapital kecil di atas isi); yang lebih lama memudar. */
 export function DaftarKomentar({ komentar, onTekanLama }: { komentar: Komentar[]; onTekanLama?: (k: Komentar) => void }) {
   const terakhir = komentar.slice(-6);
   if (terakhir.length === 0) return null;
@@ -455,13 +569,8 @@ export function DaftarKomentar({ komentar, onTekanLama }: { komentar: Komentar[]
             disabled={!bisaDitekan}
             onLongPress={() => onTekanLama?.(k)}
             accessibilityHint={bisaDitekan ? 'Tekan lama untuk melaporkan atau memblokir' : undefined}
-            style={[styles.gelembung, { opacity: 0.5 + (0.5 * (i + 1)) / terakhir.length }]}>
-            <View style={styles.barisNama}>
-              <Lencana peran={k.peran} />
-              <Text style={[styles.nama, k.saya && styles.namaSaya]} numberOfLines={1}>
-                {k.nama}
-              </Text>
-            </View>
+            style={[styles.komentar, { opacity: 0.5 + (0.5 * (i + 1)) / terakhir.length }]}>
+            <NamaPeserta nama={k.nama} peran={k.saya ? null : k.peran} />
             <Text style={styles.teksKomentar}>{k.isi}</Text>
           </Pressable>
         );
@@ -470,17 +579,12 @@ export function DaftarKomentar({ komentar, onTekanLama }: { komentar: Komentar[]
   );
 }
 
+/** Kolom komentar pil 52 tinta pekat bergaris, dan tombol kirim bulat tulang di sebelahnya. */
 export function KolomKomentar({
   onKirim,
-  onHati,
-  onHadiah,
   placeholder = 'Komentar untuk petugas…',
 }: {
   onKirim: (isi: string) => Promise<boolean>;
-  /** Tombol hati di samping kolom, seperti .live-compose di desain. */
-  onHati?: () => void;
-  /** Tombol hadiah untuk penonton: membuka PanelHadiah. */
-  onHadiah?: () => void;
   placeholder?: string;
 }) {
   const [isi, setIsi] = useState('');
@@ -498,37 +602,27 @@ export function KolomKomentar({
 
   return (
     <View style={styles.kolom}>
-      <View style={styles.pilKomentar}>
-        <TextInput
-          value={isi}
-          onChangeText={setIsi}
-          placeholder={placeholder}
-          placeholderTextColor="rgba(255,255,255,0.6)"
-          maxLength={BATAS_KOMENTAR}
-          returnKeyType="send"
-          onSubmitEditing={() => void kirim()}
-          style={styles.input}
-        />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Kirim komentar"
-          disabled={!bisaKirim}
-          onPress={() => void kirim()}
-          hitSlop={6}
-          style={[styles.kirim, !bisaKirim && styles.kirimMati]}>
-          <Ionicons name="send" size={18} color={Media.limau} />
-        </Pressable>
-      </View>
-      {onHadiah && (
-        <Pressable accessibilityRole="button" accessibilityLabel="Kirim hadiah" onPress={onHadiah} hitSlop={6} style={styles.tombolHati}>
-          <Ionicons name="gift" size={21} color={Media.limau} />
-        </Pressable>
-      )}
-      {onHati && (
-        <Pressable accessibilityRole="button" accessibilityLabel="Kirim hati" onPress={onHati} hitSlop={6} style={styles.tombolHati}>
-          <Ionicons name="heart-outline" size={22} color="#fff" />
-        </Pressable>
-      )}
+      <TextInput
+        value={isi}
+        onChangeText={setIsi}
+        accessibilityLabel="Tulis komentar"
+        placeholder={placeholder}
+        placeholderTextColor="rgba(237,232,223,0.6)"
+        maxLength={BATAS_KOMENTAR}
+        returnKeyType="send"
+        onSubmitEditing={() => void kirim()}
+        style={styles.input}
+      />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Kirim komentar"
+        accessibilityState={{ disabled: !bisaKirim }}
+        disabled={!bisaKirim}
+        onPress={() => void kirim()}
+        hitSlop={4}
+        style={({ pressed }) => [styles.kirim, !bisaKirim && styles.kirimMati, pressed && styles.ditekan]}>
+        <Ionicons name="paper-plane-outline" size={20} color={TINTA} />
+      </Pressable>
     </View>
   );
 }
@@ -555,7 +649,7 @@ export function PanelHadiah({ onKirim, onTutup, bawah }: { onKirim: (h: Hadiah) 
         ]}>
         <View style={styles.kepalaPanel}>
           <Text style={styles.judulPanel}>Kirim hadiah</Text>
-          <Text style={styles.ketPanel}>Apresiasi untuk pelapor · gratis, tanpa koin</Text>
+          <Text style={styles.ketPanel}>APRESIASI UNTUK PELAPOR · GRATIS, TANPA KOIN</Text>
         </View>
         <View style={styles.gridHadiah}>
           {DAFTAR_HADIAH.map((h) => (
@@ -625,98 +719,129 @@ function HatiMelayang({ hati: h, onSelesai }: { hati: Hati; onSelesai: (id: numb
 const styles = StyleSheet.create({
   daftar: {
     alignSelf: 'flex-start',
-    maxWidth: '80%',
-    gap: 8,
+    maxWidth: '100%',
+    gap: 12,
   },
-  // .chat-stream di desain: gelembung kaca, nama hijau di atas isi.
-  gelembung: {
+  komentar: {
     alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 10,
-    backgroundColor: 'rgba(15,18,16,0.55)',
-  },
-  barisNama: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginBottom: 2,
+    gap: 2,
   },
   nama: {
     flexShrink: 1,
-    color: Media.namaObrolan,
-    fontFamily: Fonts.bold,
-    fontSize: 12,
-  },
-  lencana: {
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
-  lencanaPetugas: {
-    backgroundColor: Media.limau,
-  },
-  lencanaPelapor: {
-    backgroundColor: Media.merah,
-  },
-  teksLencana: {
-    color: '#fff',
-    fontFamily: Fonts.bold,
+    fontFamily: Fonts.monoTebal,
     fontSize: 10,
-    letterSpacing: 0.3,
-  },
-  teksLencanaPetugas: {
-    color: Media.onLimau,
-  },
-  namaSaya: {
-    color: Media.limau,
+    letterSpacing: 0.6,
   },
   teksKomentar: {
-    color: '#fff',
+    color: TULANG,
     fontFamily: Fonts.regular,
-    fontSize: 13.5,
-    lineHeight: 18,
+    fontSize: 14,
+    lineHeight: 19,
+  },
+  ditekan: {
+    opacity: 0.75,
+    transform: [{ scale: 0.95 }],
+  },
+  lencanaLive: {
+    height: 30,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    borderRadius: 9,
+    backgroundColor: SINYAL,
+  },
+  lencanaMenunggu: {
+    backgroundColor: Media.kaca,
+  },
+  titikLive: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: TINTA,
+  },
+  teksLencanaLive: {
+    color: TINTA,
+    fontFamily: Fonts.judulTebal,
+    fontSize: 13,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  teksMenunggu: {
+    color: TULANG,
+    fontSize: 11,
+    letterSpacing: 0.4,
+  },
+  pilLive: {
+    height: 30,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderRadius: 9,
+    backgroundColor: Media.kaca,
+  },
+  pilIkon: {
+    width: 30,
+    paddingHorizontal: 0,
+    justifyContent: 'center',
+  },
+  teksPilLive: {
+    color: TULANG,
+    fontFamily: Fonts.monoTebal,
+    fontSize: 11,
+    letterSpacing: 0.6,
+    fontVariant: ['tabular-nums'],
+  },
+  teksPilBesar: {
+    fontSize: 12,
+    letterSpacing: 0.3,
+  },
+  tombolSamping: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: Media.garis,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 1,
+    backgroundColor: Media.kaca,
+  },
+  angkaSamping: {
+    color: TULANG,
+    fontFamily: Fonts.monoTebal,
+    fontSize: 9,
+    fontVariant: ['tabular-nums'],
   },
   kolom: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
   },
-  pilKomentar: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingLeft: 14,
-    paddingRight: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.27)',
-    borderRadius: Radius.pill,
-    backgroundColor: 'rgba(13,17,14,0.42)',
-  },
   input: {
     flex: 1,
-    height: 42,
-    color: '#fff',
+    minWidth: 0,
+    height: 52,
+    paddingHorizontal: 18,
+    borderWidth: 1,
+    borderColor: Media.garis,
+    borderRadius: 26,
+    backgroundColor: Media.kaca,
+    color: TULANG,
     fontFamily: Fonts.regular,
     fontSize: 14,
   },
   kirim: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: TULANG,
   },
   kirimMati: {
-    opacity: 0.4,
-  },
-  tombolHati: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    opacity: 0.45,
   },
   hati: {
     position: 'absolute',
@@ -725,44 +850,39 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     gap: 6,
   },
-  // Spanduk gift TikTok: pil gelap memudar ke kanan, emoji menyembul, combo miring besar.
+  // Spanduk hadiah: pil tinta memudar ke kanan, emoji menyembul, combo besar berhuruf judul.
   spanduk: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     maxWidth: 300,
     padding: 3,
-    borderRadius: Radius.pill,
-    experimental_backgroundImage: 'linear-gradient(to right, rgba(15,18,16,0.75), rgba(15,18,16,0.15))',
+    borderRadius: 24,
+    ...gradasi('linear-gradient(to right, rgba(12,14,13,0.86), rgba(12,14,13,0.2))'),
   },
   avatarKiriman: {
     width: 34,
     height: 34,
     borderRadius: 17,
     borderWidth: 2,
-    borderColor: Media.limau,
-    backgroundColor: '#304036',
+    borderColor: SINYAL,
+    backgroundColor: 'rgba(237,232,223,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   inisialKiriman: {
-    color: '#fff',
-    fontFamily: Fonts.judulTebal,
+    color: TULANG,
+    fontFamily: Fonts.tebal,
     fontSize: 13,
   },
   teksSpanduk: {
     flexShrink: 1,
-  },
-  namaKiriman: {
-    flexShrink: 1,
-    color: '#fff',
-    fontFamily: Fonts.bold,
-    fontSize: 13,
+    gap: 2,
   },
   ketKiriman: {
-    color: 'rgba(255,255,255,0.75)',
+    color: Media.redup,
     fontFamily: Fonts.regular,
-    fontSize: 11.5,
+    fontSize: 12,
   },
   emojiKiriman: {
     fontSize: 32,
@@ -771,10 +891,10 @@ const styles = StyleSheet.create({
   },
   combo: {
     paddingRight: 10,
-    color: '#fff',
+    color: TULANG,
     fontFamily: Fonts.judulTebal,
-    fontSize: 24,
-    fontStyle: 'italic',
+    fontSize: 21,
+    lineHeight: 26,
     textShadowColor: 'rgba(0,0,0,0.6)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 6,
@@ -800,7 +920,7 @@ const styles = StyleSheet.create({
     width: 200,
     height: 200,
     borderRadius: 100,
-    backgroundColor: 'rgba(184,243,74,0.16)',
+    backgroundColor: 'rgba(255,74,28,0.18)',
   },
   emojiSorotan: {
     fontSize: 120,
@@ -810,17 +930,17 @@ const styles = StyleSheet.create({
     maxWidth: '85%',
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: Radius.pill,
-    backgroundColor: 'rgba(15,18,16,0.7)',
+    borderRadius: 18,
+    backgroundColor: Media.kaca,
   },
   teksSorotan: {
-    color: '#fff',
+    color: TULANG,
     fontFamily: Fonts.semibold,
     fontSize: 14,
     textAlign: 'center',
   },
   namaSorotan: {
-    color: Media.limau,
+    color: SINYAL,
     fontFamily: Fonts.bold,
   },
   panelHadiah: {
@@ -828,25 +948,31 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    paddingTop: Spacing.three,
+    paddingTop: 20,
     paddingHorizontal: Spacing.three,
-    borderTopLeftRadius: Radius.large,
-    borderTopRightRadius: Radius.large,
-    backgroundColor: 'rgba(16,19,18,0.96)',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    borderColor: 'rgba(237,232,223,0.16)',
+    backgroundColor: Media.kacaTebal,
     gap: Spacing.three,
   },
   kepalaPanel: {
-    gap: 2,
+    gap: 4,
+    paddingHorizontal: 4,
   },
   judulPanel: {
-    color: '#fff',
+    color: TULANG,
     fontFamily: Fonts.judulTebal,
-    fontSize: 16,
+    fontSize: 21,
+    lineHeight: 26,
   },
   ketPanel: {
-    color: Media.redup,
-    fontFamily: Fonts.regular,
-    fontSize: 12.5,
+    color: 'rgba(237,232,223,0.62)',
+    fontFamily: Fonts.mono,
+    fontSize: 10,
+    letterSpacing: 0.6,
   },
   gridHadiah: {
     flexDirection: 'row',
@@ -858,23 +984,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     paddingVertical: Spacing.two,
-    borderRadius: Radius.medium,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: 'transparent',
   },
   selBesar: {
-    borderColor: 'rgba(184,243,74,0.35)',
+    borderColor: 'rgba(255,74,28,0.45)',
   },
   selDitekan: {
     transform: [{ scale: 0.92 }],
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(237,232,223,0.08)',
   },
   emojiSel: {
     fontSize: 34,
     lineHeight: 42,
   },
   namaSel: {
-    color: '#fff',
+    color: TULANG,
     fontFamily: Fonts.medium,
     fontSize: 11.5,
   },

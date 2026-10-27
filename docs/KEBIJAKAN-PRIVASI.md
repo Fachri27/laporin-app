@@ -19,7 +19,7 @@ Laporan anonim tidak dikaitkan dengan akun Anda, dan nama Anda tidak dikirim.
 
 ## Data akun (opsional)
 
-Bila Anda masuk dengan Google atau Apple: nama, alamat email (bisa alamat relay Apple), dan foto profil Google. Dipakai untuk riwayat Laporanku, suka, dan komentar. Nama Anda tampil bersama komentar yang Anda tulis.
+Bila Anda masuk dengan Google atau Apple: nama, alamat email (bisa alamat relay Apple), dan foto profil Google. Dipakai untuk riwayat Laporan saya, suka, dan komentar. Nama Anda tampil bersama komentar yang Anda tulis.
 
 ## Siaran langsung
 

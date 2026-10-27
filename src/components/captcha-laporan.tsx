@@ -1,11 +1,11 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Modal, Pressable, StyleSheet, Text, TurboModuleRegistry, View } from 'react-native';
+import { ActivityIndicator, Linking, Modal, Platform, Pressable, StyleSheet, Text, TurboModuleRegistry, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { TombolIkon } from '@/components/bilah-atas';
 import { Tombol } from '@/components/tombol';
-import { Fonts, Radius, Spacing } from '@/constants/theme';
+import { Fonts, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { API_URL } from '@/lib/api';
 
@@ -18,9 +18,11 @@ import { API_URL } from '@/lib/api';
 
 // Development build lama dibuat sebelum react-native-webview dipasang; mengimpornya
 // di sana langsung crash. Jadi WebView dimuat malas hanya bila modul native-nya ada.
-const WebViewCaptcha = TurboModuleRegistry.get('RNCWebViewModule')
-  ? lazy(() => import('react-native-webview').then((m) => ({ default: m.WebView })))
-  : null;
+// Web tidak punya TurboModuleRegistry sama sekali (dan tidak memakai WebView ini).
+const WebViewCaptcha =
+  Platform.OS !== 'web' && TurboModuleRegistry.get('RNCWebViewModule')
+    ? lazy(() => import('react-native-webview').then((m) => ({ default: m.WebView })))
+    : null;
 
 /** Turnstile yang tidak kunjung memberi jawaban dalam waktu ini dianggap gagal dimuat. */
 const BATAS_MUAT_MS = 20_000;
@@ -104,18 +106,19 @@ export function CaptchaLaporan({ terbuka, onSelesai }: Props) {
   return (
     <Modal visible={terbuka} transparent animationType="slide" onRequestClose={() => tutup(null)}>
       <Pressable style={styles.selubung} onPress={() => tutup(null)} accessibilityLabel="Batal" />
-      <View style={[styles.lembar, { backgroundColor: w.background, paddingBottom: insets.bottom + Spacing.three }]}>
+      {/* Lembar dari bawah: pegangan, label mono + judul kapital, tombol tutup bulat. */}
+      <View style={[styles.lembar, { backgroundColor: w.surface, paddingBottom: insets.bottom + 22 }]}>
+        <View style={[styles.pegangan, { backgroundColor: w.borderStrong }]} />
         <View style={styles.kepala}>
           <View style={styles.fleks}>
+            <Text style={[styles.eyebrow, { color: w.accentText }]}>KIRIM TANPA AKUN</Text>
             <Text style={[styles.judul, { color: w.text }]}>Verifikasi singkat</Text>
-            <Text style={[styles.ket, { color: w.textSecondary }]}>
-              Kiriman tanpa akun perlu dipastikan dari manusia. Masuk dengan akun untuk melewati langkah ini.
-            </Text>
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel="Tutup" onPress={() => tutup(null)} hitSlop={8}>
-            <Ionicons name="close" size={24} color={w.textSecondary} />
-          </Pressable>
+          <TombolIkon ikon="x" label="Tutup" onPress={() => tutup(null)} />
         </View>
+        <Text style={[styles.ket, { color: w.textSecondary }]}>
+          Kiriman tanpa akun perlu dipastikan dari manusia. Masuk dengan akun untuk melewati langkah ini.
+        </Text>
 
         {WebViewCaptcha ? (
           <View style={styles.wadahWeb}>
@@ -141,7 +144,7 @@ export function CaptchaLaporan({ terbuka, onSelesai }: Props) {
               />
             </Suspense>
             {menukar && (
-              <View style={[StyleSheet.absoluteFill, styles.tengah, { backgroundColor: w.background }]}>
+              <View style={[StyleSheet.absoluteFill, styles.tengah, { backgroundColor: w.surface }]}>
                 <ActivityIndicator color={w.accentText} />
               </View>
             )}
@@ -186,32 +189,44 @@ export function CaptchaLaporan({ terbuka, onSelesai }: Props) {
 const styles = StyleSheet.create({
   selubung: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(12,14,13,0.6)',
   },
   lembar: {
-    paddingTop: Spacing.four,
-    paddingHorizontal: 18,
-    gap: Spacing.three,
-    borderTopLeftRadius: Radius.large,
-    borderTopRightRadius: Radius.large,
+    paddingTop: 10,
+    paddingHorizontal: 20,
+    gap: 14,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+  },
+  pegangan: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
   },
   kepala: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: Spacing.two,
   },
   fleks: {
     flex: 1,
   },
+  eyebrow: {
+    fontFamily: Fonts.monoTebal,
+    fontSize: 11,
+    letterSpacing: 0.8,
+  },
   judul: {
-    fontFamily: Fonts.judul,
-    fontSize: 16,
+    marginTop: 4,
+    fontFamily: Fonts.judulTebal,
+    fontSize: 21,
+    lineHeight: 26,
   },
   ket: {
-    marginTop: 2,
     fontFamily: Fonts.regular,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 13.5,
+    lineHeight: 20,
   },
   tengahTeks: {
     textAlign: 'center',

@@ -1,11 +1,14 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import type { ComponentProps } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BilahAtas } from '@/components/bilah-atas';
 import { Tombol } from '@/components/tombol';
-import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
+import { Fonts } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 
 /** Layar petunjuk saat fitur siaran belum bisa dipakai (Expo Go, mode demo). */
 export function Petunjuk({
@@ -19,16 +22,25 @@ export function Petunjuk({
   teks: string;
   kode: string;
 }) {
+  const w = useTheme();
   const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.layar, styles.tengah, { paddingTop: insets.top, paddingBottom: insets.bottom + Spacing.four }]}>
-      <Ionicons name={ikon} size={56} color={Colors.dark.accent} />
-      <Text style={styles.judul}>{judul}</Text>
-      <Text style={styles.teks}>{teks}</Text>
-      <Text selectable style={styles.kode}>
-        {kode}
-      </Text>
-      <Tombol judul="Kembali" besar onPress={() => router.back()} style={styles.tombol} />
+    <View style={[styles.layar, { backgroundColor: w.background }]}>
+      <StatusBar style="auto" />
+      <BilahAtas judul="Siaran langsung" onKembali={() => router.back()} />
+      <ScrollView contentContainerStyle={[styles.isi, { paddingBottom: insets.bottom + 24 }]}>
+        <View style={[styles.ikon, { backgroundColor: w.accentSoft }]}>
+          <Ionicons name={ikon} size={28} color={w.accentText} />
+        </View>
+        <Text style={[styles.judul, { color: w.text }]}>{judul}</Text>
+        <Text style={[styles.teks, { color: w.textSecondary }]}>{teks}</Text>
+        <View style={[styles.kotakKode, { backgroundColor: w.surface, borderColor: w.border }]}>
+          <Text selectable style={[styles.kode, { color: w.text }]}>
+            {kode}
+          </Text>
+        </View>
+        <Tombol judul="Kembali" ragam="terang" besar onPress={() => router.back()} style={styles.tombol} />
+      </ScrollView>
     </View>
   );
 }
@@ -36,39 +48,50 @@ export function Petunjuk({
 const styles = StyleSheet.create({
   layar: {
     flex: 1,
-    backgroundColor: '#000',
   },
-  tengah: {
+  isi: {
+    flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.three,
-    paddingHorizontal: Spacing.four,
+    gap: 14,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+  },
+  ikon: {
+    width: 64,
+    height: 64,
+    marginBottom: 4,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   judul: {
-    color: '#fff',
-    fontSize: 21,
+    maxWidth: 340,
     fontFamily: Fonts.judulTebal,
+    fontSize: 21,
+    lineHeight: 26,
     textAlign: 'center',
   },
   teks: {
-    color: 'rgba(255,255,255,0.75)',
-    fontSize: 14.5,
+    maxWidth: 340,
+    fontFamily: Fonts.regular,
+    fontSize: 14,
     lineHeight: 21,
     textAlign: 'center',
   },
-  kode: {
+  kotakKode: {
     alignSelf: 'stretch',
-    color: '#f0f0f0',
+    padding: 16,
+    borderWidth: 1,
+    borderRadius: 16,
+  },
+  kode: {
     fontFamily: Fonts.mono,
-    fontSize: 12.5,
+    fontSize: 12,
     lineHeight: 19,
-    padding: Spacing.three,
-    borderRadius: Radius.medium,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    overflow: 'hidden',
   },
   tombol: {
     alignSelf: 'stretch',
-    marginTop: Spacing.two,
+    marginTop: 6,
   },
 });

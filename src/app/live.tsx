@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { Petunjuk } from '@/components/live/petunjuk-live';
+import { Media } from '@/constants/theme';
 import { MODE_DEMO } from '@/lib/api';
 import { siaranTersedia } from '@/lib/live-tersedia';
 
@@ -33,7 +34,7 @@ export default function LayarLive() {
     <Suspense
       fallback={
         <View style={[styles.layar, styles.tengah]}>
-          <ActivityIndicator color="#fff" />
+          <ActivityIndicator color={Media.teks} />
         </View>
       }>
       <SiaranLive />
@@ -44,7 +45,7 @@ export default function LayarLive() {
 const styles = StyleSheet.create({
   layar: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: Media.latar,
   },
   tengah: {
     alignItems: 'center',

@@ -63,8 +63,8 @@ const KUNCI_PROFIL = 'lapor-karhutla.profil';
 const GOOGLE_WEB_CLIENT_ID = (process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '').trim();
 const GOOGLE_IOS_CLIENT_ID = (process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? '').trim();
 
-/** Modul native Google Sign-In hanya ada di development/preview build terbaru, bukan Expo Go. */
-const ADA_GOOGLE_NATIVE = TurboModuleRegistry.get('RNGoogleSignin') != null;
+/** Modul native Google Sign-In hanya ada di development/preview build terbaru, bukan Expo Go. Web tidak punya TurboModuleRegistry. */
+const ADA_GOOGLE_NATIVE = Platform.OS !== 'web' && TurboModuleRegistry.get('RNGoogleSignin') != null;
 
 function cariHalanganGoogle(): string | null {
   if (MODE_DEMO) return 'Masuk butuh server — aplikasi sedang dalam mode demo.';
@@ -198,7 +198,8 @@ export async function segarkanAkun(): Promise<boolean> {
   }
 }
 
-type HasilMasuk = { ok: true } | { ok: false; galat: string | null };
+/** `status`: kode HTTP bila server menjawab dengan galat. */
+type HasilMasuk = { ok: true } | { ok: false; galat: string | null; status?: number };
 
 async function tukarSesi(path: string, isi: unknown): Promise<HasilMasuk> {
   try {
@@ -209,7 +210,7 @@ async function tukarSesi(path: string, isi: unknown): Promise<HasilMasuk> {
     });
     const json = (await r.json().catch(() => null)) as { token?: string; pengguna?: Pengguna; galat?: string } | null;
     if (!r.ok || !json?.token || !json.pengguna) {
-      return { ok: false, galat: json?.galat ?? `Server menolak (HTTP ${r.status}).` };
+      return { ok: false, galat: json?.galat ?? `Server menolak (HTTP ${r.status}).`, status: r.status };
     }
     token = json.token;
     await simpanAman(KUNCI_TOKEN, json.token);
@@ -299,8 +300,13 @@ export async function masukApple(): Promise<HasilMasuk> {
 }
 
 /** Dev server saja: masuk tanpa Google (mock server, atau situs dengan MOBILE_MASUK_UJI=1). */
-export function masukUji(nama: string): Promise<HasilMasuk> {
-  return tukarSesi('/api/mobile/masuk/uji', { nama });
+export async function masukUji(nama: string): Promise<HasilMasuk> {
+  const hasil = await tukarSesi('/api/mobile/masuk/uji', { nama });
+  // Situs sengaja menjawab 404 untuk rute ini kecuali next dev dijalankan dengan MOBILE_MASUK_UJI=1.
+  if (!hasil.ok && hasil.status === 404) {
+    return { ok: false, galat: 'Masuk uji belum aktif di situs: isi MOBILE_MASUK_UJI=1 di .env.local repo situs, lalu coba lagi.' };
+  }
+  return hasil;
 }
 
 export async function keluar(): Promise<void> {
