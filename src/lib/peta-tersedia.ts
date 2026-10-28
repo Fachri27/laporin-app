@@ -2,7 +2,8 @@ import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Platform, TurboModuleRegistry } from 'react-native';
 
 /**
- * Peta memakai react-native-maps. Dua hal bisa membuatnya crash saat dibuka:
+ * Peta kecil di kartu lokasi formulir memakai react-native-maps (tab Peta memakai peta situs
+ * di WebView). Dua hal bisa membuatnya crash saat dibuka:
  *
  * 1. Build tanpa modul native-nya — development build yang dibuat sebelum
  *    react-native-maps dipasang. Expo Go selalu punya.

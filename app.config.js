@@ -14,9 +14,10 @@
 //    mewajibkan google-services.json), jadi baru dipasang setelah
 //    GOOGLE_IOS_URL_SCHEME diisi (OAuth client iOS di Google Cloud).
 //
-// 3. Peta Android (react-native-maps → Google Maps) butuh kunci Maps SDK for
-//    Android. Tanpa kunci, layar peta di Android hanya menampilkan petunjuk
-//    (lib/peta-tersedia.ts). Simpan di EAS environment variables, bukan di repo.
+// 3. Peta kecil di kartu lokasi formulir (react-native-maps → Google Maps di Android)
+//    butuh kunci Maps SDK for Android. Tanpa kunci, peta kecil itu tidak ditampilkan
+//    (lib/peta-tersedia.ts); tab Peta memakai peta situs di WebView, tanpa kunci.
+//    Simpan di EAS environment variables, bukan di repo.
 //
 // 4. Pengaman rilis. Tanpa EXPO_PUBLIC_API_URL aplikasi jalan dalam mode demo
 //    (laporan warga hanya disimulasikan); alamat http:// (mis. IP laptop dari .env)

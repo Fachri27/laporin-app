@@ -64,8 +64,9 @@ sendiri (`lib/notifikasi.ts`).
   media → **Laporkan**.
 - **Komentar** (lembar, artboard Comments): "KOMENTAR n", urutan Terbaru/Terlama, Balas · Laporkan, kolom
   tulis berbentuk pil. **Laporkan** (lembar, artboard Report): alasan bernomor, rincian, Kirim laporan.
-- **Peta** (tab): penanda semua laporan, pemilih pulau (ikon lapisan), tombol lokasiku, lembar bawah
-  berisi jumlah kejadian (radius 50 km bila lokasi diketahui) dan laporan terpilih/terdekat.
+- **Peta** (tab): peta yang sama dengan situs — sematan `/id/embed` di WebView: citra satelit, sebaran
+  asap, hotspot, angin, dan angka laporan per provinsi (ketuk provinsi = Pencarian provinsi itu). "Lihat
+  di peta" dari kartu/detail menandai titik laporannya dan menampilkan kartunya di atas bilah bawah.
 - **Live** (tab, `app/(tabs)/siaran.tsx`): judul jumlah siaran, ajakan **Mulai live** ke petugas, dan kisi
   siaran publik. Layar siaran & tonton mengikuti artboard Live broadcast (lencana LIVE, durasi, penonton,
   komentar bernama mono, tombol samping); pita berjalan dan SOS di desain tidak dibuat karena belum ada
@@ -157,7 +158,7 @@ src/
     _layout.tsx           Stack navigator + tema
     (tabs)/_layout.tsx    tab Beranda · Peta · Live · Profil (bilah bawah melayang dengan tombol Lapor)
     (tabs)/index.tsx      beranda: kepala bermono, judul jumlah laporan, chip pulau, kartu sorotan, kisi 2 kolom
-    (tabs)/peta.tsx       peta laporan (memuat react-native-maps hanya bila tersedia)
+    (tabs)/peta.tsx       peta kejadian (memuat WebView hanya bila tersedia)
     (tabs)/siaran.tsx     tab Live: siaran publik + mulai siaran
     (tabs)/profil.tsx     profil: Laporan saya / Disukai / Tersimpan, atau panel masuk
     cari.tsx              Pencarian: riwayat, wilayah ramai, hasil + urutan
@@ -183,7 +184,7 @@ src/
     story/video-story.tsx video satu item story (dimuat malas bila expo-video ada)
     akun/panel-masuk.tsx  pilihan masuk: Apple (iOS), Google, atau "masuk uji" di dev server
     captcha-laporan.tsx   verifikasi Turnstile di WebView untuk laporan tanpa akun
-    peta-laporan.tsx      peta + penanda laporan
+    peta-situs.tsx        peta sematan situs di WebView + kartu laporan terpilih
     live/siaran-live.tsx  layar siaran LiveKit
     live/tonton-live.tsx  layar menonton siaran (penonton warga)
     live/persiapan-live.tsx  persiapan & akhir siaran (tanpa impor LiveKit)

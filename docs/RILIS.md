@@ -34,7 +34,8 @@ developer, kunci/ID dari Google & Apple, dan server situs (lihat [Server](#serve
    - *iOS* → `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` + `GOOGLE_IOS_URL_SCHEME`.
    Tanpa ini tombol Google nonaktif; di iOS warga tetap bisa masuk dengan Apple.
 4. **Kunci Maps SDK for Android** (dibatasi ke paket + SHA-1) → `GOOGLE_MAPS_ANDROID_API_KEY`.
-   Tanpa kunci, layar peta di Android hanya menampilkan petunjuk (tidak crash).
+   Hanya untuk peta kecil di kartu lokasi formulir; tanpa kunci, peta kecil itu tidak ditampilkan
+   (tidak crash). Tab Peta memakai peta situs di WebView dan tidak butuh kunci.
 5. **Email kontak publik** → `EXPO_PUBLIC_KONTAK_EMAIL` (muncul di Pengaturan, Ketentuan, Privasi).
 
 Simpan semuanya sebagai **EAS environment variables** lingkungan `production` (dan `preview`):

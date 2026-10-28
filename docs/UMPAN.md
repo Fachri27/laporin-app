@@ -64,7 +64,17 @@ alur captcha mobile di [API.md](API.md#captcha). Jawabannya juga sama: `201 { ko
 
 ## Peta
 
-`react-native-maps`: Apple Maps di iOS, Google Maps di Android.
+**Tab Peta** = peta sematan situs (`{SITUS_URL}/id/embed`) di WebView, sama persis dengan peta
+situs: citra satelit, sebaran asap, hotspot, angin, angka laporan per provinsi. Aplikasi hanya
+menyuntikkan skrip kecil (`components/peta-situs.tsx`): tema, ruang bilah bawah (`--sela-bawah`),
+ketukan provinsi → Pencarian, dan penanda laporan dari "Lihat di peta" (lewat
+`window._maplibreMap` situs). Perubahan peta di situs langsung ikut tampil di aplikasi.
+Google Analytics yang dimuat situs dimatikan di WebView (penanda opt-out gtag.js
+`ga-disable-<ID>`), supaya isian App Privacy & Data Safety ("tanpa analitik", [RILIS.md](RILIS.md))
+tetap benar. Bila situs mengganti ID GA, ID barunya ikut dimatikan begitu tag gtag.js muncul.
+
+**Peta kecil di kartu lokasi formulir** memakai `react-native-maps`: Apple Maps di iOS, Google Maps
+di Android.
 
 - **Expo Go**: tanpa pengaturan. Di emulator Android uji coba, Google menolak kunci bawaan Expo Go
   (`Authorization failure`) sehingga ubin peta kosong. Di HP sungguhan seharusnya jalan.
@@ -86,4 +96,5 @@ build lama tidak memuat modul native keduanya.
 Supaya build lama tidak crash, keduanya dimuat malas setelah modul native-nya dicek
 (`requireOptionalNativeModule('ExpoVideo')`, `TurboModuleRegistry.get('RNMapsAirModule')`).
 Di build lama, video tampil sebagai sampul dengan keterangan "butuh versi aplikasi terbaru",
-dan tab Peta menampilkan petunjuk build ulang.
+dan peta kecil di formulir laporan tidak ditampilkan. Tab Peta memakai peta situs di WebView
+(`react-native-webview`), jadi tidak butuh react-native-maps maupun kunci Google Maps.

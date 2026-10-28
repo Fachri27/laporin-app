@@ -1,65 +1,42 @@
 import Feather from '@expo/vector-icons/Feather';
 import { lazy, Suspense } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Platform, StyleSheet, Text, TurboModuleRegistry, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Fonts, Spacing } from '@/constants/theme';
+import { Tombol } from '@/components/tombol';
+import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { halanganPeta, type HalanganPeta } from '@/lib/peta-tersedia';
+import { SITUS_URL } from '@/lib/umpan';
 
-// Dimuat malas: modul native peta tidak boleh dievaluasi di build yang belum siap (lihat peta-tersedia.ts).
-const PetaLaporan = lazy(() => import('@/components/peta-laporan'));
+// Peta tab ini adalah peta situs di WebView. Development build lama dibuat sebelum
+// react-native-webview dipasang (mengimpornya di sana langsung crash), dan web tidak memakai
+// WebView ini — jadi dimuat malas hanya bila modul native-nya ada.
+const PetaSitus =
+  Platform.OS !== 'web' && TurboModuleRegistry.get('RNCWebViewModule') ? lazy(() => import('@/components/peta-situs')) : null;
 
-// Instruksi pengembang hanya di __DEV__. Build rilis tanpa kunci Maps memang boleh (docs/RILIS.md),
-// jadi warga hanya diberi tahu bahwa peta belum tersedia.
-const PETUNJUK: Record<Exclude<HalanganPeta, null>, { judul: string; teks: string; kode?: string }> = {
-  web: {
-    judul: 'Peta hanya di aplikasi HP',
-    teks: 'Buka aplikasi di Android atau iPhone untuk melihat peta laporan.',
-  },
-  'perlu-build': __DEV__
-    ? {
-        judul: 'Peta butuh development build baru',
-        teks: 'Development build ini dibuat sebelum react-native-maps dipasang. Buat development build baru.',
-        kode: 'npx eas-cli@latest build --profile development',
-      }
-    : {
-        judul: 'Peta belum tersedia',
-        teks: 'Versi aplikasi ini belum memuat peta. Perbarui aplikasi; laporan tetap bisa dilihat di Beranda dan Pencarian.',
-      },
-  'perlu-kunci': __DEV__
-    ? {
-        judul: 'Peta butuh Google Maps API key',
-        teks:
-          'iPhone memakai Apple Maps tanpa kunci. Untuk Android, isi env GOOGLE_MAPS_ANDROID_API_KEY: di EAS env saat build/update, ' +
-          'dan ekspor juga saat expo start supaya manifest dev memuat plugin peta. Build yang dibuat tanpa kunci perlu dibuild ulang.',
-        kode: 'GOOGLE_MAPS_ANDROID_API_KEY=AIza… npx expo start',
-      }
-    : {
-        judul: 'Peta belum tersedia',
-        teks: 'Peta belum tersedia di versi aplikasi ini. Laporan tetap bisa dilihat di Beranda dan Pencarian.',
-      },
-};
+/** Halaman peta situs untuk ponsel, dibuka di peramban bila peta tidak bisa tampil di sini. */
+const URL_PETA_PERAMBAN = `${SITUS_URL}/id/karhutla/panel`;
 
 export default function LayarPeta() {
   const w = useTheme();
   const insets = useSafeAreaInsets();
 
-  if (halanganPeta) {
-    const p = PETUNJUK[halanganPeta];
+  if (!PetaSitus) {
     // .empty-view di desain: ikon, judul, satu paragraf — di bagian atas layar, bukan di tengah.
     return (
       <View style={[styles.kosong, { backgroundColor: w.background, paddingTop: insets.top + 72 }]}>
         <View style={[styles.ikon, { borderColor: w.border }]}>
           <Feather name="map" size={26} color={w.text} />
         </View>
-        <Text style={[styles.judul, { color: w.text }]}>{p.judul}</Text>
-        <Text style={[styles.teks, { color: w.textSecondary }]}>{p.teks}</Text>
-        {p.kode && (
-          <Text selectable style={[styles.kode, { color: w.text, backgroundColor: w.surface, borderColor: w.border }]}>
-            {p.kode}
-          </Text>
-        )}
+        <Text style={[styles.judul, { color: w.text }]}>Peta belum tersedia</Text>
+        <Text style={[styles.teks, { color: w.textSecondary }]}>
+          {Platform.OS === 'web'
+            ? 'Peta kejadian ada di situs Lapor Karhutla.'
+            : __DEV__
+              ? 'Development build ini dibuat sebelum react-native-webview dipasang. Buat development build baru.'
+              : 'Versi aplikasi ini belum memuat peta. Perbarui aplikasi, atau buka petanya di situs.'}
+        </Text>
+        <Tombol judul="Buka peta di situs" ragam="sekunder" ikon="open-outline" onPress={() => void Linking.openURL(URL_PETA_PERAMBAN)} style={styles.tombol} />
       </View>
     );
   }
@@ -71,7 +48,7 @@ export default function LayarPeta() {
           <ActivityIndicator color={w.accentText} />
         </View>
       }>
-      <PetaLaporan />
+      <PetaSitus />
     </Suspense>
   );
 }
@@ -109,15 +86,7 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     textAlign: 'center',
   },
-  kode: {
-    alignSelf: 'stretch',
-    marginTop: Spacing.three,
-    fontFamily: Fonts.mono,
-    fontSize: 12,
-    lineHeight: 19,
-    padding: Spacing.three,
-    borderWidth: 1,
-    borderRadius: 16,
-    overflow: 'hidden',
+  tombol: {
+    marginTop: 20,
   },
 });
