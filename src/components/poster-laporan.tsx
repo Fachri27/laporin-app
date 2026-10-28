@@ -42,8 +42,8 @@ export function BarisGeser({ children, jarak = 10 }: { children: ReactNode; jara
 }
 
 /**
- * Kisi kartu yang mengalir ke bawah, tanpa geser ke samping: dua kolom di beranda, tiga kolom
- * di "Laporan Serupa" detail. Lebar kartu dibagi rata dari lebar layar.
+ * Kisi kartu yang mengalir ke bawah, tanpa geser ke samping: dua kolom di "Laporan Serupa"
+ * detail (tiga kolom terlalu sempit untuk judulnya). Lebar kartu dibagi rata dari lebar layar.
  */
 export function KisiPoster({ berita, kolom = 3, style }: { berita: Berita[]; kolom?: 2 | 3; style?: ViewStyle }) {
   const { width } = useWindowDimensions();

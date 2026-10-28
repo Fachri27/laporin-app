@@ -60,9 +60,8 @@ sendiri (`lib/notifikasi.ts`).
   bilah posisi untuk melompat, layar penuh bawaan HP), foto bisa dicubit, **ketuk ganda** = suka; tombol
   kembali, label provinsi · urutan media, dan segmen per media (ketuk = pindah) — lalu baris penulis
   (kredit, jumlah laporannya, **Simpan**), judul, cerita, lajur **LOKASI** (ketuk = peta) · **TANGGAL** ·
-  **SUMBER**, Suka · Komentar · Bagikan · **Laporkan**, dan tab **Episode** (tiap foto/video laporan = satu
-  episode: gambar kecil, durasi, garis sudah ditonton; ketuk = tampil di pemutar) serta **Laporan Serupa**
-  (kisi 3 kolom). Tekan lama media → **Laporkan**.
+  **SUMBER**, Suka · Komentar · Bagikan · **Laporkan**, lalu **Laporan Serupa** (kisi 2 kolom). Tekan lama
+  media → **Laporkan**.
 - **Komentar** (lembar, artboard Comments): "KOMENTAR n", urutan Terbaru/Terlama, Balas · Laporkan, kolom
   tulis berbentuk pil. **Laporkan** (lembar, artboard Report): alasan bernomor, rincian, Kirim laporan.
 - **Peta** (tab): penanda semua laporan, pemilih pulau (ikon lapisan), tombol lokasiku, lembar bawah
@@ -163,7 +162,7 @@ src/
     (tabs)/profil.tsx     profil: Laporan saya / Disukai / Tersimpan, atau panel masuk
     cari.tsx              Pencarian: riwayat, wilayah ramai, hasil + urutan
     notifikasi.tsx        kabar status laporan milik akun
-    laporan/[id].tsx      detail gaya Netflix: pemutar, judul, Putar/Peta, aksi, tab Episode & Laporan Serupa
+    laporan/[id].tsx      detail gaya Netflix: pemutar, judul, Putar/Peta, aksi, Laporan Serupa
     komentar/[id].tsx     lembar komentar satu laporan (menulis butuh akun; tekan lama = laporkan/blokir)
     laporkan.tsx          lembar "Laporkan" komentar / laporan / siaran
     ketentuan.tsx         Ketentuan Penggunaan (teks di constants/hukum.ts)

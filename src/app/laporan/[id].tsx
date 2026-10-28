@@ -1,6 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Image } from 'expo-image';
 import { router, useIsFocused, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -18,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/avatar';
 import { TombolIkon } from '@/components/bilah-atas';
-import { KisiPoster } from '@/components/poster-laporan';
+import { JudulBagian, KisiPoster } from '@/components/poster-laporan';
 import { Tombol } from '@/components/tombol';
 import { HatiKetukGanda, type HatiKetuk } from '@/components/umpan/hati-ketuk';
 import { KontrolVideo } from '@/components/umpan/kontrol-video';
@@ -36,14 +35,13 @@ import {
   muatUmpan,
   tanggalSingkat,
   tempatSingkat,
-  urlGambar,
   useUmpan,
   type Berita,
 } from '@/lib/umpan';
 
 let nomorHati = 0;
 
-/** Tab "Laporan Serupa": laporan lain dari provinsi yang sama dulu, lalu yang terbaru. */
+/** "Laporan Serupa": laporan lain dari provinsi yang sama dulu, lalu yang terbaru. */
 const JUMLAH_TERKAIT = 12;
 
 /** Kredit tanpa nama orang: jumlah laporannya tidak berarti apa-apa. */
@@ -53,9 +51,9 @@ const KREDIT_UMUM = new Set(['Laporan warga', 'Anonim']);
  * Detail satu laporan, dari artboard "Post detail": pemutar bersudut bawah 32 di atas (video
  * dengan kontrol Netflix — mundur/maju 10 detik, posisi, layar penuh; foto bisa dicubit, ketuk
  * ganda = suka; geser antar media, segmen kemajuan di bawahnya), lalu sumber, judul, cerita,
- * lajur Lokasi · Tanggal · Sumber, Suka · Komentar · Bagikan · Laporkan, dan tab **Episode**
- * (tiap foto/video laporan = satu episode) serta **Laporan Serupa**. Di atas media hanya tombol
- * & label kecil di pojok; keterangan panjang di bawahnya, supaya bukti tidak tertutup.
+ * lajur Lokasi · Tanggal · Sumber, Suka · Komentar · Bagikan · Laporkan, lalu **Laporan Serupa**.
+ * Di atas media hanya tombol & label kecil di pojok; keterangan panjang di bawahnya, supaya bukti
+ * tidak tertutup.
  */
 export default function LayarDetailLaporan() {
   const w = useTheme();
@@ -113,10 +111,6 @@ function Detail({ berita: b, awal }: { berita: Berita; awal: number }) {
   const [kontrol, setKontrol] = useState(false);
   const [kendali, setKendali] = useState<KendaliVideo | null>(null);
   const [putaran, setPutaran] = useState<StatusPutar | null>(null);
-  /** Per episode (urutan media): durasi video & seberapa jauh sudah ditonton (0–1) di layar ini. */
-  const [durasi, setDurasi] = useState<ReadonlyMap<number, number>>(() => new Map());
-  const [ditonton, setDitonton] = useState<ReadonlyMap<number, number>>(() => new Map());
-  const [tab, setTab] = useState<'episode' | 'serupa'>('episode');
   /** Media sudah tergulir lewat: status bar mengikuti latar halaman, bukan pemutar gelap. */
   const [lewatMedia, setLewatMedia] = useState(false);
   const halaman = useRef<ScrollView>(null);
@@ -133,7 +127,6 @@ function Detail({ berita: b, awal }: { berita: Berita; awal: number }) {
   const laporanSumber = KREDIT_UMUM.has(kredit) ? 0 : berita.filter((x) => kreditLaporan(x) === kredit).length;
   const tempat = b.provinsi ?? b.pulau;
   const tersimpan = useTersimpan().includes(b.id);
-  const tabAktif = banyak ? tab : 'serupa';
 
   const terkait = useMemo(() => {
     const lain = berita.filter((x) => x.id !== b.id);
@@ -152,7 +145,7 @@ function Detail({ berita: b, awal }: { berita: Berita; awal: number }) {
     void aturSuka(b.id, !disukai, jumlahSuka);
   }
 
-  /** Pindah media: lewat geser, daftar episode, atau tombol Putar. */
+  /** Pindah media: lewat geser atau segmen di bawah pemutar. */
   function pindahKe(i: number) {
     if (i !== indeks) {
       setIndeks(i);
@@ -161,7 +154,7 @@ function Detail({ berita: b, awal }: { berita: Berita; awal: number }) {
     }
   }
 
-  function pilihEpisode(i: number) {
+  function pilihMedia(i: number) {
     pindahKe(i);
     daftarMedia.current?.scrollToIndex({ index: i, animated: false });
     halaman.current?.scrollTo({ y: 0, animated: true });
@@ -184,18 +177,6 @@ function Detail({ berita: b, awal }: { berita: Berita; awal: number }) {
   const hapusHati = useCallback((id: number) => setHati((h) => h.filter((x) => x.id !== id)), []);
   const tekanLama = useCallback(() => menuLaporan(b, false), [b]);
   const ubahKontrol = useCallback(() => setKontrol((x) => !x), []);
-  const terimaPutaran = useCallback(
-    (st: StatusPutar) => {
-      setPutaran(st);
-      if (st.durasi > 0) {
-        setDurasi((m) => (m.get(indeks) === st.durasi ? m : new Map(m).set(indeks, st.durasi)));
-        // Dibulatkan per 2%: daftar episode tidak dirender ulang empat kali sedetik.
-        const f = Math.round((st.detik / st.durasi) * 50) / 50;
-        setDitonton((m) => (f <= (m.get(indeks) ?? 0) ? m : new Map(m).set(indeks, f)));
-      }
-    },
-    [indeks],
-  );
 
   const satuMedia = (m: Berita['media'][number], i: number) => {
     const aktif = i === indeks;
@@ -214,7 +195,7 @@ function Detail({ berita: b, awal }: { berita: Berita; awal: number }) {
         onTekanLama={tekanLama}
         onKetuk={video && aktif ? ubahKontrol : undefined}
         onKendali={video && aktif ? setKendali : undefined}
-        onPutaran={video && aktif ? terimaPutaran : undefined}
+        onPutaran={video && aktif ? setPutaran : undefined}
       />
     );
   };
@@ -293,7 +274,7 @@ function Detail({ berita: b, awal }: { berita: Berita; awal: number }) {
                   accessibilityRole="button"
                   accessibilityLabel={`Media ${i + 1} dari ${b.media.length}`}
                   accessibilityState={{ selected: i === indeks }}
-                  onPress={() => pilihEpisode(i)}
+                  onPress={() => pilihMedia(i)}
                   hitSlop={{ top: 12, bottom: 12 }}
                   style={[styles.satuSegmen, { backgroundColor: i <= indeks ? TULANG : Media.garis }]}
                 />
@@ -393,30 +374,11 @@ function Detail({ berita: b, awal }: { berita: Berita; awal: number }) {
           </View>
         </View>
 
-        {(banyak || terkait.length > 0) && (
-          <View accessibilityRole="tablist" style={[styles.tabs, { borderBottomColor: w.border }]}>
-            {banyak && <Tab judul="Episode" aktif={tabAktif === 'episode'} onPress={() => setTab('episode')} />}
-            {terkait.length > 0 && <Tab judul="Laporan Serupa" aktif={tabAktif === 'serupa'} onPress={() => setTab('serupa')} />}
-          </View>
-        )}
-
-        {tabAktif === 'episode' ? (
-          <View style={styles.daftarEpisode}>
-            {b.media.map((m, i) => (
-              <Episode
-                key={`${i}-${m.url}`}
-                media={m}
-                nomor={i + 1}
-                aktif={i === indeks}
-                durasi={durasi.get(i)}
-                ditonton={ditonton.get(i) ?? 0}
-                kreditLaporan={kredit}
-                onPress={() => pilihEpisode(i)}
-              />
-            ))}
-          </View>
-        ) : (
-          <KisiPoster berita={terkait} style={styles.kisiSerupa} />
+        {terkait.length > 0 && (
+          <>
+            <JudulBagian judul="Laporan Serupa" />
+            <KisiPoster berita={terkait} kolom={2} style={styles.kisiSerupa} />
+          </>
         )}
       </ScrollView>
       {/* Isi yang digulir tidak lewat di bawah jam & ikon status bar. */}
@@ -425,96 +387,6 @@ function Detail({ berita: b, awal }: { berita: Berita; awal: number }) {
         style={[styles.penutup, { height: insets.top, backgroundColor: lewatMedia ? w.background : Media.latar }]}
       />
     </View>
-  );
-}
-
-/** Tab pil kapital kecil seperti pengurut komentar di desain: terpilih terisi penuh. */
-function Tab({ judul, aktif, onPress }: { judul: string; aktif: boolean; onPress: () => void }) {
-  const w = useTheme();
-  return (
-    <Pressable
-      accessibilityRole="tab"
-      accessibilityState={{ selected: aktif }}
-      accessibilityLabel={judul}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.tab,
-        aktif ? { backgroundColor: w.chipAktif, borderColor: w.chipAktif } : { borderColor: w.border },
-        pressed && styles.ditekanRingan,
-      ]}>
-      <Text style={[styles.teksTab, { color: aktif ? w.onChipAktif : w.text }]}>{judul.toUpperCase()}</Text>
-    </Pressable>
-  );
-}
-
-/** 75 → "1:15". */
-function jamDurasi(detik: number): string {
-  const d = Math.round(detik);
-  return `${Math.floor(d / 60)}:${String(d % 60).padStart(2, '0')}`;
-}
-
-/**
- * Satu "episode" = satu foto/video laporan (daftar episode Netflix): gambar kecil 16:9 dengan
- * ikon putar dan garis sudah ditonton, nomor & jenis, durasi bila sudah diketahui (kapital kecil).
- * Ketuk = tampilkan di pemutar.
- */
-function Episode({
-  media: m,
-  nomor,
-  aktif,
-  durasi,
-  ditonton,
-  kreditLaporan: kreditUtama,
-  onPress,
-}: {
-  media: Berita['media'][number];
-  nomor: number;
-  aktif: boolean;
-  durasi: number | undefined;
-  ditonton: number;
-  /** Sumber laporan (sudah tertulis di atas): nama pengambil hanya ditulis bila berbeda. */
-  kreditLaporan: string;
-  onPress: () => void;
-}) {
-  const w = useTheme();
-  const video = m.jenis === 'video';
-  const sampul = video ? m.poster : m.url;
-  const pengambil = m.keterangan?.trim();
-  const keterangan = [video ? (durasi ? jamDurasi(durasi) : 'Video') : 'Foto', pengambil !== kreditUtama && pengambil]
-    .filter(Boolean)
-    .join(' · ')
-    .toUpperCase();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Episode ${nomor}, ${video ? 'video' : 'foto'}${aktif ? ', sedang tampil' : ''}`}
-      onPress={onPress}
-      style={({ pressed }) => [styles.episode, pressed && styles.ditekan]}>
-      <View style={[styles.gambarEpisode, { backgroundColor: w.surfaceMuted }, aktif && { borderColor: w.accent }]}>
-        {sampul && <Image source={{ uri: urlGambar(sampul, 384) }} style={StyleSheet.absoluteFill} contentFit="cover" recyclingKey={sampul} />}
-        {video && (
-          <View style={styles.tengahEpisode} pointerEvents="none">
-            <View style={styles.putarEpisode}>
-              <Ionicons name="play" size={15} color={Media.teks} style={styles.geserPutar} />
-            </View>
-          </View>
-        )}
-        {video && ditonton > 0 && (
-          <View style={styles.relEpisode} pointerEvents="none">
-            <View style={[styles.isiRelEpisode, { width: `${ditonton * 100}%`, backgroundColor: w.accent }]} />
-          </View>
-        )}
-      </View>
-      <View style={styles.fleks}>
-        <Text style={[styles.judulEpisode, { color: w.text }]} numberOfLines={1}>
-          {nomor}. {video ? 'Video' : 'Foto'}
-        </Text>
-        <Text style={[styles.ketEpisode, { color: w.textSecondary }]} numberOfLines={1}>
-          {keterangan}
-        </Text>
-        {aktif && <Text style={[styles.sedang, { color: w.accentText }]}>{video ? 'SEDANG DIPUTAR' : 'SEDANG DILIHAT'}</Text>}
-      </View>
-    </Pressable>
   );
 }
 
@@ -731,86 +603,6 @@ const styles = StyleSheet.create({
   teksLaporkan: {
     fontFamily: Fonts.semibold,
     fontSize: 13,
-  },
-  tabs: {
-    flexDirection: 'row',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    marginBottom: 14,
-    borderBottomWidth: 1,
-  },
-  tab: {
-    height: 36,
-    paddingHorizontal: 14,
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderRadius: 18,
-  },
-  teksTab: {
-    fontFamily: Fonts.monoTebal,
-    fontSize: 11,
-    letterSpacing: 0.66,
-  },
-  daftarEpisode: {
-    paddingHorizontal: 20,
-    gap: 16,
-  },
-  episode: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  gambarEpisode: {
-    width: 132,
-    height: 74,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
-    overflow: 'hidden',
-  },
-  tengahEpisode: {
-    ...StyleSheet.absoluteFill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  putarEpisode: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Media.kaca,
-  },
-  geserPutar: {
-    marginLeft: 2,
-  },
-  relEpisode: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 3,
-    backgroundColor: Media.garis,
-  },
-  isiRelEpisode: {
-    height: '100%',
-  },
-  judulEpisode: {
-    fontFamily: Fonts.bold,
-    fontSize: 14,
-  },
-  ketEpisode: {
-    marginTop: 4,
-    fontFamily: Fonts.mono,
-    fontSize: 10,
-    letterSpacing: 0.5,
-  },
-  sedang: {
-    marginTop: 5,
-    fontFamily: Fonts.monoTebal,
-    fontSize: 10,
-    letterSpacing: 0.6,
   },
   kisiSerupa: {
     paddingTop: 0,
