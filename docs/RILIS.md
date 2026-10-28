@@ -32,25 +32,36 @@ developer, kunci/ID dari Google & Apple, dan server situs (lihat [Server](#serve
    - *Android* → paket di atas + SHA-1 **App signing key** dari Play Console (Setup → App integrity)
      dan SHA-1 kunci upload EAS (`npx eas-cli credentials`).
    - *iOS* → `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` + `GOOGLE_IOS_URL_SCHEME`.
+   - *OAuth consent screen* berstatus **In production**; selama *Testing*, hanya akun penguji yang bisa masuk.
    Tanpa ini tombol Google nonaktif; di iOS warga tetap bisa masuk dengan Apple.
 4. **Kunci Maps SDK for Android** (dibatasi ke paket + SHA-1) → `GOOGLE_MAPS_ANDROID_API_KEY`.
    Hanya untuk peta kecil di kartu lokasi formulir; tanpa kunci, peta kecil itu tidak ditampilkan
    (tidak crash). Tab Peta memakai peta situs di WebView dan tidak butuh kunci.
 5. **Email kontak publik** → `EXPO_PUBLIC_KONTAK_EMAIL` (muncul di Pengaturan, Ketentuan, Privasi).
 
-Simpan semuanya sebagai **EAS environment variables** lingkungan `production` (dan `preview`):
+Simpan semuanya sebagai **EAS environment variables** lingkungan `production` dan `preview`
+(`env:set` membuat atau menimpa):
 
 ```bash
-npx eas-cli@latest env:create --environment production --name EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID --value … --visibility plaintext
-npx eas-cli@latest env:create --environment production --name EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID  --value … --visibility plaintext
-npx eas-cli@latest env:create --environment production --name GOOGLE_IOS_URL_SCHEME             --value … --visibility plaintext
-npx eas-cli@latest env:create --environment production --name GOOGLE_MAPS_ANDROID_API_KEY       --value … --visibility sensitive
-npx eas-cli@latest env:create --environment production --name EXPO_PUBLIC_KONTAK_EMAIL          --value … --visibility plaintext
+E="--environment production --environment preview"
+npx eas-cli@latest env:set $E --name EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID --value … --visibility plaintext
+npx eas-cli@latest env:set $E --name EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID  --value … --visibility plaintext
+npx eas-cli@latest env:set $E --name GOOGLE_IOS_URL_SCHEME             --value … --visibility plaintext
+npx eas-cli@latest env:set $E --name GOOGLE_MAPS_ANDROID_API_KEY       --value … --visibility sensitive
+npx eas-cli@latest env:set $E --name EXPO_PUBLIC_KONTAK_EMAIL          --value … --visibility plaintext
+npx eas-cli@latest env:list --environment production                  # periksa
 ```
 
-Isi juga nilai `EXPO_PUBLIC_*` yang sama di `.env.production`, karena `eas update` membaca file itu.
-`EXPO_PUBLIC_API_URL` sudah diisi `https://fire.nusantara.earth`, di `.env.production` dan juga di
-`eas.json`.
+- `EXPO_PUBLIC_*` = `plaintext`: nilainya memang tertanam di aplikasi, dan variabel `secret` tidak
+  bisa dibaca saat `eas update`.
+- Build EAS dan `eas update --environment …` (wajib sejak SDK 55) **hanya** membaca EAS environment
+  variables, tidak membaca `.env` maupun `.env.production`. Mengubah nilai `EXPO_PUBLIC_*` cukup
+  `env:set` lalu `eas update`, tanpa build ulang; variabel yang dibaca `app.config.js` (kunci Maps,
+  skema iOS Google) butuh build baru. `.env.production` hanya untuk bundling rilis **lokal**
+  (`npx expo export`, `npx expo run:* --variant release`).
+- Sudah terisi di `production` & `preview`: `EXPO_PUBLIC_API_URL` (juga di `eas.json`) dan
+  `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` (sama dengan `GOOGLE_WEB_CLIENT_ID` di `.env` situs — server
+  produksi wajib memakai nilai yang sama).
 
 ## Build & kirim
 

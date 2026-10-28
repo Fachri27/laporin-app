@@ -83,18 +83,25 @@ dengan situs, **OAuth consent screen** sudah diisi, lalu buat OAuth client ID be
 3. **iOS** (nanti, saat build iOS): bundle ID `earth.nusantara.fire.lapor`. Isi
    `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` dan `GOOGLE_IOS_URL_SCHEME` (`com.googleusercontent.apps.…`,
    dipakai `app.config.js` untuk plugin google-signin). Ini menambah plugin native, jadi runtime
-   version (fingerprint) berubah untuk **semua** platform: buat build Android & iOS baru, dan isi
-   variabel yang sama di mesin yang menjalankan `eas update`.
+   version (fingerprint) berubah untuk **semua** platform: buat build Android & iOS baru, dengan
+   kedua variabel itu di EAS environment variables (lihat di bawah).
+4. **OAuth consent screen** berstatus *In production*. Selama masih *Testing*, hanya akun penguji
+   yang terdaftar di sana yang bisa masuk.
 
 Lalu di aplikasi:
 
 ```bash
-# .env (dev server) dan .env.production (build rilis & eas update)
+# .env — dev server di laptop
 EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=1234567890-xxxx.apps.googleusercontent.com
+
+# Build EAS & eas update — EAS environment variables (tidak membaca .env/.env.production)
+npx eas-cli@latest env:set --environment production --environment preview \
+  --name EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID --value 1234567890-xxxx.apps.googleusercontent.com --visibility plaintext
 ```
 
-Nilai ini masuk ke kode JS, jadi bisa dikirim lewat `eas update` tanpa build ulang. Mock server
-memeriksa `aud` bila dijalankan dengan `GOOGLE_WEB_CLIENT_ID=… npm run mock`.
+Nilai ini masuk ke kode JS, jadi bisa dikirim lewat `eas update` tanpa build ulang. Server memakai
+nilai yang sama sebagai `GOOGLE_WEB_CLIENT_ID`. Mock server memeriksa `aud` bila dijalankan dengan
+`GOOGLE_WEB_CLIENT_ID=… npm run mock`.
 
 ## Uji tanpa Google
 

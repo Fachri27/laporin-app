@@ -118,7 +118,7 @@ sendiri (`lib/notifikasi.ts`).
 | **Demo** (bawaan) | `EXPO_PUBLIC_API_URL` kosong | Mencoba seluruh alur. Unggahan hanya disimulasikan |
 | **Mock server** | `EXPO_PUBLIC_API_URL=http://<IP-laptop>:4000` | Menguji unggahan multipart sungguhan dari HP |
 | **Situs lokal** | `EXPO_PUBLIC_API_URL` & `EXPO_PUBLIC_SITUS_URL` = `http://<IP-laptop>:3000` | Repo situs branch `feat/api-mobile`, `next dev -H 0.0.0.0` dengan `MOBILE_MASUK_UJI=1` |
-| **Server situs** | `EXPO_PUBLIC_API_URL=https://fire.nusantara.earth` | Produksi (`.env.production`, `eas.json`), lihat [docs/API.md](docs/API.md) |
+| **Server situs** | `EXPO_PUBLIC_API_URL=https://fire.nusantara.earth` | Produksi (EAS environment variables & `eas.json`), lihat [docs/API.md](docs/API.md) |
 
 Mode ini hanya mengatur tujuan **kirim**. Beranda selalu membaca laporan dari situs
 (`EXPO_PUBLIC_SITUS_URL`, bawaan produksi), karena sifatnya hanya-baca.
@@ -274,13 +274,14 @@ npx eas-cli@latest update --channel preview --environment preview --clear-cache 
 ```
 
 - `--clear-cache` **wajib**: tanpa itu Metro bisa memakai cache lama dari dev server, dan
-  `EXPO_PUBLIC_API_URL` milik `.env` (IP laptop) ikut terkirim, bukan milik `.env.production`.
+  `EXPO_PUBLIC_API_URL` milik `.env` (IP laptop) yang sudah tertanam di cache ikut terkirim.
 - `runtimeVersion` memakai **fingerprint** (sidik jari bagian native). Update hanya diterima build
   yang modul native-nya sama, jadi tidak ada crash seperti "Cannot find native module".
   Setelah menambah modul native (`npx expo install` paket native), **buat build baru** dulu.
   Nama/paket varian tidak dihitung (`fingerprint.config.js`).
-- Bundling rilis memakai `.env.production`, bukan `.env`. Isinya kosong (mode demo), karena build
-  rilis Android menolak `http://`. Isi dengan alamat `https` setelah endpoint situs siap, lalu
-  kirim lewat update; tidak perlu build ulang.
+- Nilai `EXPO_PUBLIC_*` untuk build EAS dan update diambil dari **EAS environment variables**
+  lingkungan `--environment` itu, bukan dari `.env` atau `.env.production`. Ubah lewat
+  `npx eas-cli@latest env:set`, lalu kirim lewat update; tidak perlu build ulang (lihat
+  [docs/RILIS.md](docs/RILIS.md)). `.env.production` hanya dipakai bundling rilis lokal (`npx expo export`).
 
 Teks izin kamera/mikrofon/lokasi/galeri, ikon, dan splash sudah diatur di `app.json`.
