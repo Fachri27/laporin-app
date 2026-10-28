@@ -13,7 +13,7 @@ import { KisiUndak } from '@/components/poster-laporan';
 import { TitikLive } from '@/components/titik-live';
 import { Tombol } from '@/components/tombol';
 import { VideoUmpan } from '@/components/umpan/media-umpan';
-import { Fonts, Media, SINYAL, TINTA, TULANG } from '@/constants/theme';
+import { Fonts, gradasi, Media, SINYAL, TINTA, TULANG } from '@/constants/theme';
 import { useAplikasiAktif } from '@/hooks/use-aplikasi-aktif';
 import { useTheme } from '@/hooks/use-theme';
 import { bukaKomentar, bukaLaporan } from '@/lib/aksi-laporan';
@@ -223,7 +223,7 @@ export default function LayarBeranda() {
 
 /**
  * Kartu sorotan: foto/video selebar kartu bersudut 28, provinsi di kiri atas, tombol suara
- * (video) di kanan atas, tombol putar tulang, lalu di pita gelap bawah: judul, kredit, suka,
+ * (video) di kanan atas, tombol putar tulang, lalu di atas gradasi gelap bawah: judul, kredit, suka,
  * dan komentar (angka 0 tidak ditulis). Satu-satunya kartu yang teksnya menumpang di atas foto
  * (seperti desain); sisanya di bawah foto.
  */
@@ -303,7 +303,7 @@ function KartuSorotan({
         accessibilityRole="button"
         accessibilityLabel={video ? 'Putar video laporan' : 'Lihat foto laporan'}
         onPress={() => bukaLaporan(b.id)}
-        style={({ pressed }) => [styles.putar, { top: Math.round(tinggi * 0.3) }, pressed && styles.ditekan]}>
+        style={({ pressed }) => [styles.putar, { top: Math.round(tinggi * 0.5) }, pressed && styles.ditekan]}>
         <Ionicons name={video ? 'play' : 'images'} size={video ? 22 : 20} color={TINTA} style={video && styles.geserPutar} />
       </Pressable>
 
@@ -409,13 +409,15 @@ const styles = StyleSheet.create({
   },
   selubung: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 124,
-    backgroundColor: TINTA,
-    // Lebih pekat dari desain (0,7): cap waktu & alamat yang terekam di video tidak tembus.
-    opacity: 0.93,
+    // Lewat 2 dari tepi kartu (sudutnya dipotong kartu): pembulatan piksel di Android menyisakan
+    // garis video setipis rambut di tepi bila selubung pas di tepi.
+    left: -2,
+    right: -2,
+    bottom: -2,
+    height: 232,
+    // Bening di atas supaya video tetap terlihat, nyaris pekat di belakang judul & kredit: cap waktu
+    // & alamat yang terekam di foto/video (biasanya di kiri bawah) tidak tembus.
+    ...gradasi('linear-gradient(to bottom, rgba(12,14,13,0), rgba(12,14,13,0.75) 30%, rgba(12,14,13,0.97) 52%)'),
   },
   atasSorotan: {
     position: 'absolute',
