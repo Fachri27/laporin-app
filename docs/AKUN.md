@@ -85,8 +85,10 @@ dengan situs, **OAuth consent screen** sudah diisi, lalu buat OAuth client ID be
    dipakai `app.config.js` untuk plugin google-signin). Ini menambah plugin native, jadi runtime
    version (fingerprint) berubah untuk **semua** platform: buat build Android & iOS baru, dengan
    kedua variabel itu di EAS environment variables (lihat di bawah).
-4. **OAuth consent screen** berstatus *In production*. Selama masih *Testing*, hanya akun penguji
-   yang terdaftar di sana yang bisa masuk.
+4. **OAuth consent screen** sebaiknya *In production* (Google Auth Platform → Audience → *Publish app*).
+   Aplikasi hanya meminta scope dasar (email, profil, openid; `configure()` tanpa `scopes`), dan untuk
+   scope itu Google tidak membatasi login ke akun penguji maupun memberi kedaluwarsa 7 hari walau
+   status masih *Testing*. Batas itu baru berlaku bila kelak ditambah scope lain.
 
 Lalu di aplikasi:
 

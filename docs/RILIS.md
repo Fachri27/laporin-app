@@ -32,7 +32,12 @@ developer, kunci/ID dari Google & Apple, dan server situs (lihat [Server](#serve
    - *Android* → paket di atas + SHA-1 **App signing key** dari Play Console (Setup → App integrity)
      dan SHA-1 kunci upload EAS (`npx eas-cli credentials`).
    - *iOS* → `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` + `GOOGLE_IOS_URL_SCHEME`.
-   - *OAuth consent screen* berstatus **In production**; selama *Testing*, hanya akun penguji yang bisa masuk.
+   - *OAuth consent screen* sebaiknya **In production** (Google Auth Platform → Audience → *Publish app*).
+     Aplikasi hanya meminta scope dasar (email, profil, openid), jadi status *Testing* pun tidak membatasi
+     login; batas akun penguji & kedaluwarsa 7 hari baru berlaku bila kelak ada scope lain.
+     *Publish app* baru aktif setelah halaman **Branding** lengkap: home page `https://fire.nusantara.earth`,
+     privacy policy `https://fire.nusantara.earth/id/privasi` (baru ada setelah web di-deploy), authorized
+     domain `nusantara.earth`. Logo dikosongkan agar tidak perlu verifikasi merek.
    Tanpa ini tombol Google nonaktif; di iOS warga tetap bisa masuk dengan Apple.
 4. **Kunci Maps SDK for Android** (dibatasi ke paket + SHA-1) → `GOOGLE_MAPS_ANDROID_API_KEY`.
    Hanya untuk peta kecil di kartu lokasi formulir; tanpa kunci, peta kecil itu tidak ditampilkan
@@ -61,7 +66,9 @@ npx eas-cli@latest env:list --environment production                  # periksa
   (`npx expo export`, `npx expo run:* --variant release`).
 - Sudah terisi di `production` & `preview`: `EXPO_PUBLIC_API_URL` (juga di `eas.json`) dan
   `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` (sama dengan `GOOGLE_WEB_CLIENT_ID` di `.env` situs — server
-  produksi wajib memakai nilai yang sama).
+  produksi wajib memakai nilai yang sama). Hanya di `production`: `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`
+  dan `GOOGLE_IOS_URL_SCHEME` (client iOS untuk bundle `earth.nusantara.fire.lapor`; varian preview
+  berbundle `.preview` butuh client iOS sendiri, jadi di `preview` sengaja kosong).
 
 ## Build & kirim
 
